@@ -17,8 +17,9 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <plugin-support.h>
-
+#include "dump_dock.hpp"
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 // so what do we ned
@@ -34,13 +35,15 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 // for example, if the delay is 10 seconds and the user holds the butotn for 5 seconds, then we should only dump the first 5 seconds of the delay
 
 // classes we'll need:
-// - a class to represent the delay buffer, which will hold the frames and their timestamps
-// - a class to represent the configuration options, which will hold the delay time and the dump type
+// - a class to handle the actual logic, which will have methods for cutting delay, filling delay, saving settings to config, and stuff like that
 // - a class to represent the frontend, which will handle the user interface and the button
 // and then, this class will combine everything and handle the logic of dumping the delay when the button is pressed based on the configuration options
 
 bool obs_module_load(void)
 {
+	auto *dock = new dump_dock();
+    obs_frontend_add_dock(dock);
+
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
 	return true;
 }
