@@ -1,43 +1,61 @@
 #pragma once
 
+#include <QComboBox>
 #include <QDockWidget>
+#include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QVBoxLayout>
 #include <QWidget>
-#include <QLabel>
+#include <QColor>
+#include <memory>
+
+#include "dump.hpp"
 
 class dump_dock : public QDockWidget {
-    Q_OBJECT
+Q_OBJECT
 
 public:
-    dump_dock(QWidget *parent = nullptr) : QDockWidget(parent) {
-        setWindowTitle("UhohBS Control");
-        setObjectName("uhohbs_dock"); // Critical for OBS to remember the dock's position
+    explicit dump_dock(QWidget *parent = nullptr);
+    ~dump_dock() override = default;
 
-        auto *layout = new QVBoxLayout();
-        
-        // Configuration Section
-        layout->addWidget(new QLabel("Dump Delay (seconds):"));
-        auto *delayInput = new QSpinBox();
-        delayInput->setRange(1, 60);
-        layout->addWidget(delayInput);
+    void trigger_dump_from_hotkey();
 
-        // The Big Red Button
-        auto *button = new QPushButton("DUMP STREAM");
-        button->setMinimumHeight(50);
-        layout->addWidget(button);
+signals:
+    void dump_requested();
 
-        auto *container = new QWidget();
-        container->setLayout(layout);
-        setWidget(container);
-
-        // This is where you will connect your button to the logic later
-        connect(button, &QPushButton::clicked, this, &dump_dock::HandleDump);
-    }
+public slots:
+    void TriggerDump();
 
 private slots:
-    void HandleDump() {
-        // We will fill this with the actual output-stopping logic next
-    }
+    void HandleDump();
+    void OnModeChanged(int index);
+    void OnFillTypeChanged(int index);
+    void OnPipelineTargetChanged(int index);
+    void OnFillColorChanged(const QString &text);
+
+private:
+    dump_config BuildConfigFromUi() const;
+    void ApplyConfigToUi(const dump_config &config);
+    void UpdateUiState();
+    void UpdateModeHint();
+    void UpdateColorPreview(const QString &text);
+    QString NormalizeHexColor(QString value) const;
+    void SetStatus(const QString &text, bool isError, bool inProgress);
+    void LoadPersistedSettings();
+    void SavePersistedSettings() const;
+
+    QSpinBox *delayInput{nullptr};
+    QComboBox *modeInput{nullptr};
+    QComboBox *fillTypeInput{nullptr};
+    QLineEdit *fillTargetInput{nullptr};
+    QLineEdit *fillColorInput{nullptr};
+    QLabel *fillColorPreview{nullptr};
+    QComboBox *pipelineTargetInput{nullptr};
+    QLabel *modeHintLabel{nullptr};
+    QPushButton *dumpButton{nullptr};
+    QLabel *statusLabel{nullptr};
+    QColor statusDefaultColor;
+
+    std::shared_ptr<dump_coordinator> coordinator;
 };

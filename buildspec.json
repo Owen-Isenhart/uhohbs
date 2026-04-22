@@ -33,13 +33,13 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.example.plugintemplate-for-obs"
+            "bundleId": "com.oisenhart.uhohbs"
         }
     },
     "name": "uhohbs",
-    "displayName": "Plugin Template for OBS",
+    "displayName": "uhohbs",
     "version": "1.0.0",
-    "author": "Your Name Here",
-    "website": "https://example.com",
-    "email": "me@example.com"
+    "author": "Owen Isenhart",
+    "website": "https://github.com/Owen-Isenhart/uhohbs",
+    "email": "isenhart.owen@gmail.com"
 }

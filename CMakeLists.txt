@@ -53,7 +53,13 @@ endif()
 
 # --- Sources ---
 # Ensure your main entry point is included here
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.cpp)
+target_sources(
+  ${CMAKE_PROJECT_NAME}
+  PRIVATE
+    src/plugin-main.cpp
+    src/dump.cpp
+    src/dump_dock.cpp
+)
 
 # --- Plugin Finalization ---
 # This helper function sets the output name to 'uhohbs' 

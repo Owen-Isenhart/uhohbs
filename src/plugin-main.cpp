@@ -19,30 +19,66 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <obs-module.h>
 #include <obs-frontend-api.h>
 #include <plugin-support.h>
+
+#include <QAction>
+#include <QMainWindow>
+#include <QMetaObject>
+#include <QWidget>
+
 #include "dump_dock.hpp"
+
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
-// so what do we ned
-// we need a frontend that has configuration options
-//    - a number input for delay in seconds
-//    - an option to either cut the delay on button press or fill in the delay with an image/source
-//    - the actual button to trigger the dump
-// we need the logic to handle the dump
-//    - if the option is to cut the delay, then we need to clear the heap/stack/buffer and make the next frame the current one
-//    - if the option is to fill the delay with an image/source, then we need to change the data of all the frames in the delay to the image/source and then make the next frame the current one
 
-// we should also consider allowing the user to only dump a certain amount of the delay
-// for example, if the delay is 10 seconds and the user holds the butotn for 5 seconds, then we should only dump the first 5 seconds of the delay
+namespace {
+dump_dock *gDock = nullptr;
+obs_hotkey_id gDumpHotkeyId = OBS_INVALID_HOTKEY_ID;
+QAction *gShowDockAction = nullptr;
 
-// classes we'll need:
-// - a class to handle the actual logic, which will have methods for cutting delay, filling delay, saving settings to config, and stuff like that
-// - a class to represent the frontend, which will handle the user interface and the button
-// and then, this class will combine everything and handle the logic of dumping the delay when the button is pressed based on the configuration options
+void on_dump_hotkey(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
+{
+	if (!pressed || !gDock) {
+		return;
+	}
+
+	QMetaObject::invokeMethod(gDock, [=]() { gDock->trigger_dump_from_hotkey(); }, Qt::QueuedConnection);
+}
+} // namespace
 
 bool obs_module_load(void)
 {
-	auto *dock = new dump_dock();
-    obs_frontend_add_dock(dock);
+	gDock = new dump_dock();
+	if (!obs_frontend_add_custom_qdock("uhohbs_dock", gDock)) {
+		obs_log(LOG_ERROR, "failed to register dock with OBS frontend");
+		delete gDock;
+		gDock = nullptr;
+		return false;
+	}
+
+	gShowDockAction = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction(obs_module_text("menu.show_dock")));
+	if (gShowDockAction) {
+		QObject::connect(gShowDockAction, &QAction::triggered, []() {
+			if (!gDock) {
+				return;
+			}
+
+			auto *mainWindow = qobject_cast<QMainWindow *>(static_cast<QWidget *>(obs_frontend_get_main_window()));
+			if (mainWindow) {
+				if (mainWindow->dockWidgetArea(gDock) == Qt::NoDockWidgetArea) {
+					mainWindow->addDockWidget(Qt::LeftDockWidgetArea, gDock);
+				}
+
+				gDock->setFloating(false);
+			}
+
+			gDock->show();
+			gDock->raise();
+			gDock->activateWindow();
+		});
+	}
+
+	gDumpHotkeyId = obs_hotkey_register_frontend("uhohbs.dump", obs_module_text("hotkey.dump"), on_dump_hotkey, nullptr);
+	obs_log(LOG_INFO, "registered dump hotkey: id=%llu", static_cast<unsigned long long>(gDumpHotkeyId));
 
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
 	return true;
@@ -50,5 +86,21 @@ bool obs_module_load(void)
 
 void obs_module_unload(void)
 {
+	if (gDumpHotkeyId != OBS_INVALID_HOTKEY_ID) {
+		obs_hotkey_unregister(gDumpHotkeyId);
+		gDumpHotkeyId = OBS_INVALID_HOTKEY_ID;
+	}
+
+	if (gDock) {
+		obs_frontend_remove_dock("uhohbs_dock");
+		gDock->close();
+		gDock->deleteLater();
+		gDock = nullptr;
+	}
+
+	if (gShowDockAction) {
+		gShowDockAction = nullptr;
+	}
+
 	obs_log(LOG_INFO, "plugin unloaded");
 }

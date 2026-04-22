@@ -1,75 +1,114 @@
+#pragma once
+
+#include <algorithm>
+#include <cstdint>
 #include <string>
+
+#include <obs-module.h>
 
 struct dump_mode {
     enum class Mode {
-        Cut,
-        Fill
+        Cut = 0,
+        Fill = 1,
     };
 
     enum class FillType {
-        None,
-        Source,
-        Scene,
-        Color
+        Color = 0,
+        Source = 1,
+        Scene = 2,
     };
 };
 
+enum class pipeline_target {
+    StreamDelay = 0,
+    ReplayBuffer = 1,
+};
+
 class dump_config {
-    public:
-        // constructors
-        dump_config() {
-            censor_name = "";
-            delaySeconds = 5;
-            mode = dump_mode::Mode::Cut;
-            fillType = dump_mode::FillType::None;
-        }
-        dump_config(u_int16_t delaySeconds) {
-            censor_name = "";
-            this->delaySeconds = delaySeconds;
-            mode = dump_mode::Mode::Cut;
-            fillType = dump_mode::FillType::None;
-        }
-        dump_config(std::string censorSceneName, u_int16_t delaySeconds, dump_mode::Mode mode, dump_mode::FillType fillType = dump_mode::FillType::None) {
-            this->censor_name = censorSceneName;
-            this->delaySeconds = delaySeconds;
-            this->mode = mode;
-            this->fillType = fillType; // 1 for source, 2 for scene, 3 for color
+public:
+    static constexpr const char *kDelaySecondsKey = "delay_seconds";
+    static constexpr const char *kModeKey = "mode";
+    static constexpr const char *kFillTypeKey = "fill_type";
+    static constexpr const char *kFillTargetNameKey = "fill_target_name";
+    static constexpr const char *kFillColorHexKey = "fill_color_hex";
+    static constexpr const char *kPipelineTargetKey = "pipeline_target";
+
+    dump_config() = default;
+
+    std::uint16_t get_delay_seconds() const { return delaySeconds; }
+    dump_mode::Mode get_mode() const { return mode; }
+    dump_mode::FillType get_fill_type() const { return fillType; }
+    const std::string &get_fill_target_name() const { return fillTargetName; }
+    const std::string &get_fill_color_hex() const { return fillColorHex; }
+    pipeline_target get_pipeline_target() const { return pipelineTarget; }
+
+    void set_delay_seconds(std::uint16_t seconds)
+    {
+        delaySeconds = std::clamp<std::uint16_t>(seconds, 1, 300);
+    }
+    void set_mode(dump_mode::Mode newMode) { mode = newMode; }
+    void set_fill_type(dump_mode::FillType newFillType) { fillType = newFillType; }
+    void set_fill_target_name(std::string name) { fillTargetName = std::move(name); }
+    void set_fill_color_hex(std::string color) { fillColorHex = std::move(color); }
+    void set_pipeline_target(pipeline_target target) { pipelineTarget = target; }
+
+    void save_settings(obs_data_t *data) const
+    {
+        if (!data) {
+            return;
         }
 
-        // getters
-        std::string get_censor_name() {
-            return censor_name;
-        }
-        u_int16_t get_delay_seconds() {
-            return delaySeconds;
-        }
-        dump_mode::Mode get_mode() {
-            return mode;
-        }
-        dump_mode::FillType get_fill_type() {
-            return fillType;
+        obs_data_set_int(data, kDelaySecondsKey, static_cast<long long>(delaySeconds));
+        obs_data_set_int(data, kModeKey, static_cast<long long>(mode));
+        obs_data_set_int(data, kFillTypeKey, static_cast<long long>(fillType));
+        obs_data_set_string(data, kFillTargetNameKey, fillTargetName.c_str());
+        obs_data_set_string(data, kFillColorHexKey, fillColorHex.c_str());
+        obs_data_set_int(data, kPipelineTargetKey, static_cast<long long>(pipelineTarget));
+    }
+
+    void load_settings(obs_data_t *data)
+    {
+        if (!data) {
+            return;
         }
 
-        // setters
-        void set_censor_name(std::string name) {
-            censor_name = name;
-        }
-        void set_delay_seconds(u_int16_t seconds) {
-            delaySeconds = seconds;
-        }
-        void set_mode(dump_mode::Mode mode) {
-            this->mode = mode;
-        }
-        void set_fill_type(dump_mode::FillType fillType) {
-            this->fillType = fillType;
+        set_delay_seconds(static_cast<std::uint16_t>(obs_data_get_int(data, kDelaySecondsKey)));
+
+        const auto modeRaw = obs_data_get_int(data, kModeKey);
+        set_mode(modeRaw == static_cast<long long>(dump_mode::Mode::Fill) ? dump_mode::Mode::Fill : dump_mode::Mode::Cut);
+
+        const auto fillTypeRaw = obs_data_get_int(data, kFillTypeKey);
+        switch (fillTypeRaw) {
+        case static_cast<long long>(dump_mode::FillType::Source):
+            set_fill_type(dump_mode::FillType::Source);
+            break;
+        case static_cast<long long>(dump_mode::FillType::Scene):
+            set_fill_type(dump_mode::FillType::Scene);
+            break;
+        case static_cast<long long>(dump_mode::FillType::Color):
+        default:
+            set_fill_type(dump_mode::FillType::Color);
+            break;
         }
 
-        void save_settings() {
-            // this is gonna deal with the obs data object
+        set_fill_target_name(obs_data_get_string(data, kFillTargetNameKey));
+        set_fill_color_hex(obs_data_get_string(data, kFillColorHexKey));
+
+        const auto pipelineRaw = obs_data_get_int(data, kPipelineTargetKey);
+        set_pipeline_target(pipelineRaw == static_cast<long long>(pipeline_target::ReplayBuffer)
+                       ? pipeline_target::ReplayBuffer
+                       : pipeline_target::StreamDelay);
+
+        if (fillColorHex.empty()) {
+            fillColorHex = "#ff0000";
         }
-    private:
-        std::string censor_name; // can be a scene, source, or color
-        u_int16_t delaySeconds;
-        dump_mode::Mode mode;
-        dump_mode::FillType fillType;
+    }
+
+private:
+    std::uint16_t delaySeconds{5};
+    dump_mode::Mode mode{dump_mode::Mode::Cut};
+    dump_mode::FillType fillType{dump_mode::FillType::Color};
+    std::string fillTargetName;
+    std::string fillColorHex{"#ff0000"};
+    pipeline_target pipelineTarget{pipeline_target::StreamDelay};
 };

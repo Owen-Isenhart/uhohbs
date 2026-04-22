@@ -1,23 +1,58 @@
+#pragma once
+
+#include <atomic>
+#include <functional>
+#include <memory>
 #include <string>
+
 #include "dump_config.hpp"
 
-class dump{
-    public:
-        dump(){
-            // lowkey not sure what needs to go here
-        }
+enum class dump_result_type {
+    InProgress,
+    Success,
+    Failure,
+};
 
-        void cut_delay() {
-            // to cut the delay, we need to stop the stream (force stop, don't let it stop gracefully), and then start it again
-            // we also need to remove the frame from memory to prevent leaks
-        }
+struct dump_result {
+    dump_result_type type{dump_result_type::Failure};
+    bool usedFallback{false};
+    std::string message;
+};
 
-        void fill_delay() {
-            // to fill the delay, we need to just change the scene/source/color of the frames in the delay to the one specified by the user
-            // we keep it on that for the duration of the delay, and then we change it back to the normal stream
-        }
+class obs_runtime_bridge {
+public:
+    virtual ~obs_runtime_bridge() = default;
 
-    private:
-        dump_config config;
+    virtual bool is_streaming_active() const = 0;
+    virtual bool supports_fill_rewrite() const = 0;
+    virtual bool supports_replay_buffer() const = 0;
+    virtual dump_result execute_cut(const dump_config &config) = 0;
+    virtual dump_result execute_fill(const dump_config &config) = 0;
+};
 
+class obs_runtime_bridge_impl final : public obs_runtime_bridge {
+public:
+    bool is_streaming_active() const override;
+    bool supports_fill_rewrite() const override;
+    bool supports_replay_buffer() const override;
+    dump_result execute_cut(const dump_config &config) override;
+    dump_result execute_fill(const dump_config &config) override;
+};
+
+class dump_coordinator {
+public:
+    using status_callback_t = std::function<void(const dump_result &)>;
+
+    explicit dump_coordinator(std::unique_ptr<obs_runtime_bridge> bridge = std::make_unique<obs_runtime_bridge_impl>());
+
+    void set_status_callback(status_callback_t callback);
+    bool in_progress() const;
+    dump_result request_dump(const dump_config &config);
+
+private:
+    void notify_status(const dump_result &result) const;
+
+    std::unique_ptr<obs_runtime_bridge> bridge;
+    status_callback_t statusCallback;
+    std::atomic<bool> operationInProgress{false};
 };
