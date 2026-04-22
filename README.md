@@ -1,59 +1,69 @@
-# OBS Plugin Template
+# UhohBS
 
-## Introduction
+UhohBS is an OBS Studio plugin that provides a "dump button" for delayed live streams.
 
-The plugin template is meant to be used as a starting point for OBS Studio plugin development. It includes:
+It is designed to mimic broadcast profanity-delay workflows:
 
-* Boilerplate plugin source code
-* A CMake project file
-* GitHub Actions workflows and repository actions
+- `Cut`: Immediately discard currently buffered delayed content before it reaches viewers.
+- `Fill`: Temporarily switch output to safe content long enough to rebuild the delay buffer.
 
-## Supported Build Environments
+## What It Does
 
-| Platform  | Tool   |
-|-----------|--------|
-| Windows   | Visual Studio 17 2022 |
-| macOS     | XCode 16.0 |
-| Windows, macOS  | CMake 3.30.5 |
-| Ubuntu 24.04 | CMake 3.28.3 |
-| Ubuntu 24.04 | `ninja-build` |
-| Ubuntu 24.04 | `pkg-config`
-| Ubuntu 24.04 | `build-essential` |
+UhohBS adds a dockable control panel in OBS and a hotkey action to trigger dump operations.
 
-## Quick Start
+For stream-delay pipelines:
 
-An absolute bare-bones [Quick Start Guide](https://github.com/obsproject/obs-plugintemplate/wiki/Quick-Start-Guide) is available in the wiki.
+- `Cut` force-stops and restarts streaming to drop queued delayed frames.
+- `Fill` switches to a configured safe scene/source/color for the configured delay duration, then returns to the original scene.
 
-## Documentation
+For replay buffer pipelines (current behavior):
 
-All documentation can be found in the [Plugin Template Wiki](https://github.com/obsproject/obs-plugintemplate/wiki).
+- `Cut` and `Fill` both restart replay buffer recording to clear buffered content.
 
-Suggested reading to get up and running:
+## Dock Controls
 
-* [Getting started](https://github.com/obsproject/obs-plugintemplate/wiki/Getting-Started)
-* [Build system requirements](https://github.com/obsproject/obs-plugintemplate/wiki/Build-System-Requirements)
-* [Build system options](https://github.com/obsproject/obs-plugintemplate/wiki/CMake-Build-System-Options)
+- `Delay to Dump (seconds)`: Target delay window used by fill.
+- `Dump Mode`: `Cut` or `Fill`.
+- `Fill Type`: `Solid Color`, `Source`, or `Scene`.
+- `Fill Source/Scene Name`: Name of an existing OBS source/scene for non-color fill.
+- `Fill Color (hex)`: Hex color for solid-color fill (example: `#ff0000`).
+- `Pipeline Target`: `Stream Delay` or `Replay Buffer`.
 
-## GitHub Actions & CI
+## Safety Notes
 
-Default GitHub Actions workflows are available for the following repository actions:
+- This plugin depends on OBS stream delay being enabled when using `Stream Delay` pipeline mode.
+- `Cut` for live stream delay briefly interrupts and restarts the stream output.
+- `Fill` for live stream delay intentionally replaces content for the selected duration.
+- Test your setup privately before using it in production.
 
-* `push`: Run for commits or tags pushed to `master` or `main` branches.
-* `pr-pull`: Run when a Pull Request has been pushed or synchronized.
-* `dispatch`: Run when triggered by the workflow dispatch in GitHub's user interface.
-* `build-project`: Builds the actual project and is triggered by other workflows.
-* `check-format`: Checks CMake and plugin source code formatting and is triggered by other workflows.
+## Build (Linux)
 
-The workflows make use of GitHub repository actions (contained in `.github/actions`) and build scripts (contained in `.github/scripts`) which are not needed for local development, but might need to be adjusted if additional/different steps are required to build the plugin.
+This project uses the OBS plugin template CMake layout.
 
-### Retrieving build artifacts
+1. Configure:
 
-Successful builds on GitHub Actions will produce build artifacts that can be downloaded for testing. These artifacts are commonly simple archives and will not contain package installers or installation programs.
+```bash
+cmake --preset linux-x86_64
+```
 
-### Building a Release
+2. Build:
 
-To create a release, an appropriately named tag needs to be pushed to the `main`/`master` branch using semantic versioning (e.g., `12.3.4`, `23.4.5-beta2`). A draft release will be created on the associated repository with generated installer packages or installation programs attached as release artifacts.
+```bash
+cmake --build --preset linux-x86_64
+```
 
-## Signing and Notarizing on macOS
+If your environment uses a different preset, choose the matching value from `CMakePresets.json`.
 
-Basic concepts of codesigning and notarization on macOS are explained in the correspodning [Wiki article](https://github.com/obsproject/obs-plugintemplate/wiki/Codesigning-On-macOS) which has a specific section for the [GitHub Actions setup](https://github.com/obsproject/obs-plugintemplate/wiki/Codesigning-On-macOS#setting-up-code-signing-for-github-actions).
+## Install
+
+Copy the built plugin artifacts into your OBS plugin directory for your platform, then restart OBS.
+
+## Development Status
+
+- Core dock UI, hotkey integration, and dump coordinator are implemented.
+- Stream delay and replay buffer paths are both present.
+- Project metadata in `buildspec.json` still contains template placeholder values and should be updated before release.
+
+## License
+
+GPL v2 or later. See [LICENSE](LICENSE).
