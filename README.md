@@ -65,13 +65,45 @@ This project uses the OBS plugin template CMake layout.
 1. Configure:
 
 ```bash
-cmake --preset linux-x86_64
+cmake --preset ubuntu-x86_64
 ```
 
 2. Build:
 
 ```bash
-cmake --build --preset linux-x86_64
+cmake --build --preset ubuntu-x86_64
+```
+
+## Build (Windows)
+
+This project uses the OBS plugin template CMake layout.
+
+1. Configure:
+
+```powershell
+cmake --preset windows-x64
+```
+
+2. Build:
+
+```powershell
+cmake --build --preset windows-x64
+```
+
+## Build (macOS)
+
+This project uses the OBS plugin template CMake layout.
+
+1. Configure:
+
+```bash
+cmake --preset macos
+```
+
+2. Build:
+
+```bash
+cmake --build --preset macos
 ```
 
 If your environment uses a different preset, choose the matching value from `CMakePresets.json`.
