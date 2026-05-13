@@ -98,14 +98,16 @@ function(_setup_obs_studio)
 
   message(STATUS "Install ${label} (${arch})")
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --install build_${arch} --config Debug --prefix "${dependencies_dir}"
+    COMMAND
+      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Debug --prefix "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
     OUTPUT_QUIET
   )
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --install build_${arch} --config Release --prefix "${dependencies_dir}"
+    COMMAND
+      "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Release --prefix "${dependencies_dir}"
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result
     COMMAND_ERROR_IS_FATAL ANY
