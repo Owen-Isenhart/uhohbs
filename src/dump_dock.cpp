@@ -317,10 +317,28 @@ void dump_dock::UpdateModeHint()
 
 void dump_dock::UpdateColorPreview(const QString &text)
 {
-	const QString normalized = NormalizeHexColor(text);
-	const QColor color(normalized);
+	const QColor color = ParsePreviewColor(text);
 	const QString previewColor = color.isValid() ? color.name(QColor::HexRgb) : QString("#444444");
 	fillColorPreview->setStyleSheet(QString("border: 1px solid palette(mid); border-radius: 3px; background-color: %1;").arg(previewColor));
+}
+
+QColor dump_dock::ParsePreviewColor(QString value) const
+{
+	value = value.trimmed();
+	if (value.isEmpty()) {
+		return QColor("#ff0000");
+	}
+
+	if (!value.startsWith('#')) {
+		value.prepend('#');
+	}
+
+	if (value.size() != 7) {
+		return QColor();
+	}
+
+	QColor color(value);
+	return color.isValid() ? color : QColor();
 }
 
 QString dump_dock::NormalizeHexColor(QString value) const

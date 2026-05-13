@@ -72,32 +72,45 @@ public:
             return;
         }
 
-        set_delay_seconds(static_cast<std::uint16_t>(obs_data_get_int(data, kDelaySecondsKey)));
-
-        const auto modeRaw = obs_data_get_int(data, kModeKey);
-        set_mode(modeRaw == static_cast<long long>(dump_mode::Mode::Fill) ? dump_mode::Mode::Fill : dump_mode::Mode::Cut);
-
-        const auto fillTypeRaw = obs_data_get_int(data, kFillTypeKey);
-        switch (fillTypeRaw) {
-        case static_cast<long long>(dump_mode::FillType::Source):
-            set_fill_type(dump_mode::FillType::Source);
-            break;
-        case static_cast<long long>(dump_mode::FillType::Scene):
-            set_fill_type(dump_mode::FillType::Scene);
-            break;
-        case static_cast<long long>(dump_mode::FillType::Color):
-        default:
-            set_fill_type(dump_mode::FillType::Color);
-            break;
+        if (obs_data_has_user_value(data, kDelaySecondsKey)) {
+            set_delay_seconds(static_cast<std::uint16_t>(obs_data_get_int(data, kDelaySecondsKey)));
         }
 
-        set_fill_target_name(obs_data_get_string(data, kFillTargetNameKey));
-        set_fill_color_hex(obs_data_get_string(data, kFillColorHexKey));
+        if (obs_data_has_user_value(data, kModeKey)) {
+            const auto modeRaw = obs_data_get_int(data, kModeKey);
+            set_mode(modeRaw == static_cast<long long>(dump_mode::Mode::Fill) ? dump_mode::Mode::Fill : dump_mode::Mode::Cut);
+        }
 
-        const auto pipelineRaw = obs_data_get_int(data, kPipelineTargetKey);
-        set_pipeline_target(pipelineRaw == static_cast<long long>(pipeline_target::ReplayBuffer)
-                       ? pipeline_target::ReplayBuffer
-                       : pipeline_target::StreamDelay);
+        if (obs_data_has_user_value(data, kFillTypeKey)) {
+            const auto fillTypeRaw = obs_data_get_int(data, kFillTypeKey);
+            switch (fillTypeRaw) {
+            case static_cast<long long>(dump_mode::FillType::Source):
+                set_fill_type(dump_mode::FillType::Source);
+                break;
+            case static_cast<long long>(dump_mode::FillType::Scene):
+                set_fill_type(dump_mode::FillType::Scene);
+                break;
+            case static_cast<long long>(dump_mode::FillType::Color):
+            default:
+                set_fill_type(dump_mode::FillType::Color);
+                break;
+            }
+        }
+
+        if (obs_data_has_user_value(data, kFillTargetNameKey)) {
+            set_fill_target_name(obs_data_get_string(data, kFillTargetNameKey));
+        }
+
+        if (obs_data_has_user_value(data, kFillColorHexKey)) {
+            set_fill_color_hex(obs_data_get_string(data, kFillColorHexKey));
+        }
+
+        if (obs_data_has_user_value(data, kPipelineTargetKey)) {
+            const auto pipelineRaw = obs_data_get_int(data, kPipelineTargetKey);
+            set_pipeline_target(pipelineRaw == static_cast<long long>(pipeline_target::ReplayBuffer)
+                           ? pipeline_target::ReplayBuffer
+                           : pipeline_target::StreamDelay);
+        }
 
         if (fillColorHex.empty()) {
             fillColorHex = "#ff0000";

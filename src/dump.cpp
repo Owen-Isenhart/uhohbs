@@ -7,6 +7,9 @@
 
 #include <cstdint>
 #include <cctype>
+#include <optional>
+#include <type_traits>
+#include <utility>
 
 namespace {
 constexpr const char *kInProgressMsg = "Dump operation started";
@@ -15,6 +18,7 @@ constexpr const char *kStreamingOutputUnavailableMsg = "Streaming output is unav
 constexpr const char *kStreamStopTimeoutMsg = "Timed out waiting for stream to stop during delay cut";
 constexpr const char *kStreamRestartFailedMsg = "Delay cut stopped stream, but restart failed";
 constexpr const char *kReplayBufferNotActiveMsg = "Replay buffer is not active";
+constexpr const char *kReplayBufferStopTimeoutMsg = "Timed out waiting for replay buffer to stop";
 constexpr const char *kReplayBufferRestartFailedMsg = "Replay buffer restart failed";
 constexpr const char *kCutSuccessMsg = "Delay cut triggered";
 constexpr const char *kReplayCutSuccessMsg = "Replay buffer restarted to drop buffered content";
@@ -23,6 +27,46 @@ constexpr const char *kFillInvalidTargetMsg = "Fill target source or scene was n
 constexpr const char *kFillSourceCreateFailedMsg = "Failed to create temporary fill source";
 constexpr const char *kStreamDelayInactiveMsg = "OBS stream delay is inactive; enable stream delay in OBS output settings";
 constexpr const char *kBusyMsg = "A dump operation is already in progress";
+
+template <typename Fn>
+auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
+{
+	using Result = std::invoke_result_t<Fn>;
+	if (obs_in_task_thread(OBS_TASK_UI)) {
+		if constexpr (std::is_void_v<Result>) {
+			fn();
+			return;
+		} else {
+			return fn();
+		}
+	}
+
+	if constexpr (std::is_void_v<Result>) {
+		struct task_payload {
+			Fn fn;
+		};
+		task_payload payload{std::forward<Fn>(fn)};
+		obs_queue_task(OBS_TASK_UI,
+			[](void *param) {
+				auto *payload = static_cast<task_payload *>(param);
+				payload->fn();
+			},
+			&payload, true);
+	} else {
+		struct task_payload {
+			Fn fn;
+			std::optional<Result> result;
+		};
+		task_payload payload{std::forward<Fn>(fn), std::nullopt};
+		obs_queue_task(OBS_TASK_UI,
+			[](void *param) {
+				auto *payload = static_cast<task_payload *>(param);
+				payload->result = payload->fn();
+			},
+			&payload, true);
+		return std::move(*payload.result);
+	}
+}
 
 std::uint32_t default_fill_rgb()
 {
@@ -127,55 +171,52 @@ obs_source_t *resolve_fill_source(const dump_config &config, obs_source_t **owne
 	return obs_get_source_by_name(config.get_fill_target_name().c_str());
 }
 
-obs_source_t *build_fill_scene_source(const dump_config &config, obs_scene_t **ownedFillScene,
-	obs_source_t **ownedFillSource)
+struct fill_scene_resources {
+	obs_scene_t *scene{nullptr};
+	obs_source_t *ownedFillSource{nullptr};
+};
+
+fill_scene_resources build_fill_scene(const dump_config &config)
 {
-	if (ownedFillScene) {
-		*ownedFillScene = nullptr;
-	}
-	if (ownedFillSource) {
-		*ownedFillSource = nullptr;
-	}
+	fill_scene_resources result{};
 
 	if (config.get_fill_type() == dump_mode::FillType::Scene) {
 		if (config.get_fill_target_name().empty()) {
-			return nullptr;
+			return result;
 		}
-		return obs_get_source_by_name(config.get_fill_target_name().c_str());
+		result.scene = obs_get_scene_by_name(config.get_fill_target_name().c_str());
+		return result;
 	}
 
-	obs_source_t *fillSource = resolve_fill_source(config, ownedFillSource);
+	obs_source_t *fillSource = resolve_fill_source(config, &result.ownedFillSource);
 	if (!fillSource) {
-		return nullptr;
+		return result;
 	}
 
 	obs_scene_t *fillScene = obs_scene_create_private("uhohbs_fill_scene");
 	if (!fillScene) {
-		if (ownedFillSource && *ownedFillSource) {
-			obs_source_release(*ownedFillSource);
-			*ownedFillSource = nullptr;
+		if (result.ownedFillSource) {
+			obs_source_release(result.ownedFillSource);
+			result.ownedFillSource = nullptr;
 		} else {
 			obs_source_release(fillSource);
 		}
-		return nullptr;
+		return result;
 	}
 
 	obs_scene_add(fillScene, fillSource);
-	if (!ownedFillSource || !*ownedFillSource) {
+	if (!result.ownedFillSource) {
 		obs_source_release(fillSource);
 	}
 
-	if (ownedFillScene) {
-		*ownedFillScene = fillScene;
-	}
-
-	return obs_scene_get_source(fillScene);
+	result.scene = fillScene;
+	return result;
 }
 } // namespace
 
 bool obs_runtime_bridge_impl::is_streaming_active() const
 {
-	return obs_frontend_streaming_active();
+	return run_on_ui_thread([]() { return obs_frontend_streaming_active(); });
 }
 
 bool obs_runtime_bridge_impl::supports_fill_rewrite() const
@@ -191,14 +232,20 @@ bool obs_runtime_bridge_impl::supports_replay_buffer() const
 dump_result obs_runtime_bridge_impl::execute_cut(const dump_config &config)
 {
 	if (config.get_pipeline_target() == pipeline_target::ReplayBuffer) {
-		if (!obs_frontend_replay_buffer_active()) {
+		if (!run_on_ui_thread([]() { return obs_frontend_replay_buffer_active(); })) {
 			return {dump_result_type::Failure, false, kReplayBufferNotActiveMsg};
 		}
 
-		obs_frontend_replay_buffer_stop();
-		wait_until([]() { return !obs_frontend_replay_buffer_active(); }, 3000);
-		obs_frontend_replay_buffer_start();
-		if (!wait_until([]() { return obs_frontend_replay_buffer_active(); }, 5000)) {
+		run_on_ui_thread([]() { obs_frontend_replay_buffer_stop(); });
+		if (!wait_until([]() {
+				return !run_on_ui_thread([]() { return obs_frontend_replay_buffer_active(); });
+			},
+			3000)) {
+			return {dump_result_type::Failure, false, kReplayBufferStopTimeoutMsg};
+		}
+
+		run_on_ui_thread([]() { obs_frontend_replay_buffer_start(); });
+		if (!wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_replay_buffer_active(); }); }, 5000)) {
 			return {dump_result_type::Failure, false, kReplayBufferRestartFailedMsg};
 		}
 
@@ -210,26 +257,26 @@ dump_result obs_runtime_bridge_impl::execute_cut(const dump_config &config)
 		return {dump_result_type::Failure, false, kNotStreamingMsg};
 	}
 
-	obs_output_t *streamOutput = obs_frontend_get_streaming_output();
+	obs_output_t *streamOutput = run_on_ui_thread([]() { return obs_frontend_get_streaming_output(); });
 	if (!streamOutput) {
 		return {dump_result_type::Failure, false, kStreamingOutputUnavailableMsg};
 	}
 
-	const uint32_t activeDelaySeconds = obs_output_get_active_delay(streamOutput);
+	const uint32_t activeDelaySeconds = run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
 	if (activeDelaySeconds == 0) {
-		obs_output_release(streamOutput);
+		run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
 		return {dump_result_type::Failure, false, kStreamDelayInactiveMsg};
 	}
 
-	obs_output_force_stop(streamOutput);
-	obs_output_release(streamOutput);
+	run_on_ui_thread([streamOutput]() { obs_output_force_stop(streamOutput); });
+	run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
 
-	if (!wait_until([]() { return !obs_frontend_streaming_active(); }, 5000)) {
+	if (!wait_until([this]() { return !is_streaming_active(); }, 5000)) {
 		return {dump_result_type::Failure, false, kStreamStopTimeoutMsg};
 	}
 
-	obs_frontend_streaming_start();
-	if (!wait_until([]() { return obs_frontend_streaming_active(); }, 10000)) {
+	run_on_ui_thread([]() { obs_frontend_streaming_start(); });
+	if (!wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_streaming_active(); }); }, 10000)) {
 		return {dump_result_type::Failure, false, kStreamRestartFailedMsg};
 	}
 
@@ -247,44 +294,43 @@ dump_result obs_runtime_bridge_impl::execute_fill(const dump_config &config)
 		return {dump_result_type::Failure, false, kNotStreamingMsg};
 	}
 
-	obs_output_t *streamOutput = obs_frontend_get_streaming_output();
+	obs_output_t *streamOutput = run_on_ui_thread([]() { return obs_frontend_get_streaming_output(); });
 	if (!streamOutput) {
 		return {dump_result_type::Failure, false, kStreamingOutputUnavailableMsg};
 	}
 
-	const uint32_t activeDelaySeconds = obs_output_get_active_delay(streamOutput);
-	obs_output_release(streamOutput);
+	const uint32_t activeDelaySeconds = run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
+	run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
 	if (activeDelaySeconds == 0) {
 		return {dump_result_type::Failure, false, kStreamDelayInactiveMsg};
 	}
 
-	obs_source_t *currentScene = obs_frontend_get_current_scene();
+	obs_source_t *currentScene = run_on_ui_thread([]() { return obs_frontend_get_current_scene(); });
 	if (!currentScene) {
 		return {dump_result_type::Failure, false, kFillInvalidTargetMsg};
 	}
 
-	obs_scene_t *ownedFillScene = nullptr;
-	obs_source_t *ownedFillSource = nullptr;
-	obs_source_t *fillSceneSource = build_fill_scene_source(config, &ownedFillScene, &ownedFillSource);
-	if (!fillSceneSource) {
-		obs_source_release(currentScene);
+	fill_scene_resources fillScene = run_on_ui_thread([&config]() { return build_fill_scene(config); });
+	if (!fillScene.scene) {
+		run_on_ui_thread([currentScene]() { obs_source_release(currentScene); });
 		return {dump_result_type::Failure, false, kFillSourceCreateFailedMsg};
 	}
 
-	obs_frontend_set_current_scene(fillSceneSource);
+	run_on_ui_thread([scene = fillScene.scene]() {
+		obs_frontend_set_current_scene(obs_scene_get_source(scene));
+	});
 	os_sleep_ms(static_cast<uint32_t>(config.get_delay_seconds()) * 1000U);
-	obs_frontend_set_current_scene(currentScene);
+	run_on_ui_thread([currentScene]() { obs_frontend_set_current_scene(currentScene); });
 
-	if (ownedFillSource) {
-		obs_source_release(ownedFillSource);
-	}
-	if (ownedFillScene) {
-		obs_scene_release(ownedFillScene);
-	}
-	if (config.get_fill_type() == dump_mode::FillType::Scene) {
-		obs_source_release(fillSceneSource);
-	}
-	obs_source_release(currentScene);
+	run_on_ui_thread([&fillScene, currentScene]() {
+		if (fillScene.ownedFillSource) {
+			obs_source_release(fillScene.ownedFillSource);
+		}
+		if (fillScene.scene) {
+			obs_scene_release(fillScene.scene);
+		}
+		obs_source_release(currentScene);
+	});
 
 	obs_log(LOG_INFO, "%s", kFillSuccessMsg);
 	return {dump_result_type::Success, false, kFillSuccessMsg};
@@ -307,7 +353,9 @@ bool dump_coordinator::in_progress() const
 dump_result dump_coordinator::request_dump(const dump_config &config)
 {
 	if (operationInProgress.exchange(true)) {
-		return {dump_result_type::Failure, false, kBusyMsg};
+		const dump_result busyResult{dump_result_type::Failure, false, kBusyMsg};
+		notify_status(busyResult);
+		return busyResult;
 	}
 
 	const dump_result inProgressResult{dump_result_type::InProgress, false, kInProgressMsg};

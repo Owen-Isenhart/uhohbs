@@ -40,6 +40,7 @@ private:
     void UpdateUiState();
     void UpdateModeHint();
     void UpdateColorPreview(const QString &text);
+    QColor ParsePreviewColor(QString value) const;
     QString NormalizeHexColor(QString value) const;
     void SetStatus(const QString &text, bool isError, bool inProgress);
     void LoadPersistedSettings();

@@ -1,6 +1,6 @@
-# UhohBS
+# uhohbs
 
-UhohBS is an OBS Studio plugin that provides a "dump button" for delayed live streams.
+uhohbs is an OBS plugin that provides a "dump button" for delayed live streams, to save yourself from "uh-oh" moments that happen.
 
 It is designed to mimic broadcast profanity-delay workflows:
 
@@ -9,7 +9,7 @@ It is designed to mimic broadcast profanity-delay workflows:
 
 ## What It Does
 
-UhohBS adds a dockable control panel in OBS and a hotkey action to trigger dump operations.
+uhohbs adds a dockable control panel in OBS and a hotkey action to trigger dump operations.
 
 For stream-delay pipelines:
 
@@ -28,6 +28,28 @@ For replay buffer pipelines (current behavior):
 - `Fill Source/Scene Name`: Name of an existing OBS source/scene for non-color fill.
 - `Fill Color (hex)`: Hex color for solid-color fill (example: `#ff0000`).
 - `Pipeline Target`: `Stream Delay` or `Replay Buffer`.
+
+## How To Use In OBS
+
+1. Open the dock: `View` → `Docks` → `uhohbs Control`.
+2. If that option is not in the dock, check Tools for `Show uhohbs Control Dock`
+2. Select `Pipeline Target`:
+	- `Stream Delay`: operates on the live stream delay buffer.
+	- `Replay Buffer`: restarts the replay buffer to clear it.
+3. Select `Dump Mode`:
+	- `Cut`: drops buffered delayed content by force-restarting stream output.
+	- `Fill`: shows safe content for the configured delay duration, then returns.
+4. If using `Fill`, configure:
+	- `Fill Type` (`Solid Color`, `Source`, or `Scene`).
+	- `Fill Source/Scene Name` (exact OBS name for source/scene fill).
+	- `Fill Color (hex)` in `#RRGGBB` format for solid color fill.
+5. Set `Delay to Dump (seconds)` to the delay window you want to rebuild.
+6. Trigger a dump by clicking `Dump` in the dock or assigning/using the hotkey
+	`uhohbs: Trigger Dump` in `Settings` → `Hotkeys`.
+
+### Required OBS Setting
+
+- For `Stream Delay`, you must enable OBS stream delay.
 
 ## Safety Notes
 
