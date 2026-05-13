@@ -68,7 +68,7 @@ struct fake_bridge final : public obs_runtime_bridge {
 
 	bool is_streaming_active() const override { return true; }
 
-	dump_result execute_cut() override
+	dump_result execute_cut(bool /* disable_delay */) override
 	{
 		++cutCalls;
 		return cutResult;
@@ -85,7 +85,7 @@ void test_coordinator_cut_path()
 	std::vector<dump_result> statuses;
 	coordinator.set_status_callback([&statuses](const dump_result &result) { statuses.push_back(result); });
 
-	const dump_result result = coordinator.request_dump();
+	const dump_result result = coordinator.request_dump(false);
 
 	EXPECT_EQ(bridgePtr->cutCalls, 1);
 	EXPECT_EQ(static_cast<int>(result.type), static_cast<int>(dump_result_type::Success));

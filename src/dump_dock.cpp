@@ -6,6 +6,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVBoxLayout>
+#include <QSettings>
 
 #include <thread>
 
@@ -69,6 +70,17 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 	dumpButton->setToolTip(tr_key("dock.dump_button.help"));
 	rootLayout->addWidget(dumpButton);
 
+	skipDelayCheckbox = new QCheckBox(tr_key("dock.skip_delay"), container);
+	skipDelayCheckbox->setObjectName("uhohbs_skip_delay_checkbox");
+	skipDelayCheckbox->setToolTip(tr_key("dock.skip_delay.help"));
+	QSettings settings("Uhohbs", "DumpDock");
+	skipDelayCheckbox->setChecked(settings.value("skipDelay", false).toBool());
+	connect(skipDelayCheckbox, &QCheckBox::toggled, [](bool checked) {
+		QSettings settings("Uhohbs", "DumpDock");
+		settings.setValue("skipDelay", checked);
+	});
+	rootLayout->addWidget(skipDelayCheckbox);
+
 	statusLabel = new QLabel(tr_key("status.ready"), container);
 	statusLabel->setWordWrap(true);
 	statusLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
@@ -125,7 +137,8 @@ void dump_dock::TriggerDump()
 void dump_dock::HandleDump()
 {
 	const auto coordinatorRef = coordinator;
-	std::thread([coordinatorRef]() { coordinatorRef->request_dump(); }).detach();
+	const bool skipDelay = skipDelayCheckbox->isChecked();
+	std::thread([coordinatorRef, skipDelay]() { coordinatorRef->request_dump(skipDelay); }).detach();
 }
 
 void dump_dock::SetStatus(const QString &text, bool isError, bool inProgress)
@@ -133,4 +146,5 @@ void dump_dock::SetStatus(const QString &text, bool isError, bool inProgress)
 	statusLabel->setText(text);
 	statusLabel->setStyleSheet(isError ? "color: #d64b4b;" : QString("color: %1;").arg(statusDefaultColor.name()));
 	dumpButton->setEnabled(!inProgress);
+	skipDelayCheckbox->setEnabled(!inProgress);
 }

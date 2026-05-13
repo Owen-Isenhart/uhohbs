@@ -19,6 +19,7 @@ uhohbs adds a dockable control panel in OBS and a hotkey action to trigger dump 
 3. Open the plugin dock: **View** → **Docks** → **uhohbs Control**. (If it's missing, check **Tools** → **Show uhohbs Control Dock**).
 4. Configure the hotkey (optional): Go to **Settings** → **Hotkeys** and assign a key to `uhohbs: Trigger Dump`.
 5. When an "uh-oh" moment happens on stream, simply press the **Dump** button in the dock (or your assigned hotkey) to immediately cut the delayed frames.
+6. **(Optional)** If you check the **Disable delay after dump (One-time use)** option in the dock, dumping will force the stream to restart instantly without rebuilding the delay buffer. This ensures a much faster recovery time for viewers, but restricts the dump button to a single use for the remainder of that stream. Your original delay settings will be automatically restored for your next broadcast.
 
 ## Safety Notes
 

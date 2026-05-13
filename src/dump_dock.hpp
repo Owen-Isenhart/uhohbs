@@ -3,6 +3,7 @@
 #include <QDockWidget>
 #include <QLabel>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QWidget>
 #include <QColor>
 #include <memory>
@@ -31,6 +32,7 @@ private:
 	void SetStatus(const QString &text, bool isError, bool inProgress);
 
 	QPushButton *dumpButton{nullptr};
+	QCheckBox *skipDelayCheckbox{nullptr};
 	QLabel *statusLabel{nullptr};
 	QColor statusDefaultColor;
 
