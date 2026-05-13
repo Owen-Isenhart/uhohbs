@@ -83,12 +83,10 @@ if(ENABLE_TESTS)
 
   file(GLOB OBS_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-*/build_*")
   if(OBS_BUILD_DIR)
-    list(APPEND TEST_PATH_DIRS "${OBS_BUILD_DIR}/libobs/Release" "${OBS_BUILD_DIR}/libobs/Debug")
-    list(
-      APPEND TEST_PATH_DIRS
-      "${OBS_BUILD_DIR}/UI/obs-frontend-api/Release"
-      "${OBS_BUILD_DIR}/UI/obs-frontend-api/Debug"
-    )
+    list(APPEND TEST_PATH_DIRS "${OBS_BUILD_DIR}/libobs/Release")
+    list(APPEND TEST_PATH_DIRS "${OBS_BUILD_DIR}/libobs/Debug")
+    list(APPEND TEST_PATH_DIRS "${OBS_BUILD_DIR}/UI/obs-frontend-api/Release")
+    list(APPEND TEST_PATH_DIRS "${OBS_BUILD_DIR}/UI/obs-frontend-api/Debug")
   endif()
 
   set(ENV_MOD_LIST "")
