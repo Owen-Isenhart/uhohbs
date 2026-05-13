@@ -91,8 +91,10 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 	operationLayout->addRow(tr_key("dock.mode"), modeInput);
 
 	pipelineTargetInput = new QComboBox(container);
-	pipelineTargetInput->addItem(tr_key("dock.pipeline.stream_delay"), static_cast<int>(pipeline_target::StreamDelay));
-	pipelineTargetInput->addItem(tr_key("dock.pipeline.replay_buffer"), static_cast<int>(pipeline_target::ReplayBuffer));
+	pipelineTargetInput->addItem(tr_key("dock.pipeline.stream_delay"),
+				     static_cast<int>(pipeline_target::StreamDelay));
+	pipelineTargetInput->addItem(tr_key("dock.pipeline.replay_buffer"),
+				     static_cast<int>(pipeline_target::ReplayBuffer));
 	pipelineTargetInput->setToolTip(tr_key("dock.pipeline.help"));
 	operationLayout->addRow(tr_key("dock.pipeline"), pipelineTargetInput);
 
@@ -118,7 +120,8 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 	fillColorInput->setText("#ff0000");
 	fillColorInput->setPlaceholderText("#ff0000");
 	fillColorInput->setToolTip(tr_key("dock.fill_color.help"));
-	auto *hexValidator = new QRegularExpressionValidator(QRegularExpression("^#?[0-9A-Fa-f]{0,6}$"), fillColorInput);
+	auto *hexValidator =
+		new QRegularExpressionValidator(QRegularExpression("^#?[0-9A-Fa-f]{0,6}$"), fillColorInput);
 	fillColorInput->setValidator(hexValidator);
 
 	auto *colorRow = new QWidget(container);
@@ -155,10 +158,9 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 	rootLayout->addStretch(1);
 	statusDefaultColor = statusLabel->palette().color(statusLabel->foregroundRole());
 
-	container->setStyleSheet(
-		"QGroupBox { font-weight: 600; }"
-		"QLabel#uhohbs_mode_hint { color: palette(mid); }"
-		"QPushButton#uhohbs_dump_button { font-weight: 700; letter-spacing: 0.2px; }");
+	container->setStyleSheet("QGroupBox { font-weight: 600; }"
+				 "QLabel#uhohbs_mode_hint { color: palette(mid); }"
+				 "QPushButton#uhohbs_dump_button { font-weight: 700; letter-spacing: 0.2px; }");
 
 	setWidget(container);
 
@@ -192,7 +194,8 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 			}
 
 			if (result.type == dump_result_type::Success) {
-				const QString statusText = result.usedFallback ? tr_key("status.fill_fallback") : tr_key("status.success");
+				const QString statusText = result.usedFallback ? tr_key("status.fill_fallback")
+									       : tr_key("status.success");
 				self->SetStatus(statusText, false, false);
 				return;
 			}
@@ -220,9 +223,7 @@ void dump_dock::HandleDump()
 {
 	const auto config = BuildConfigFromUi();
 	const auto coordinatorRef = coordinator;
-	std::thread([coordinatorRef, config]() {
-		coordinatorRef->request_dump(config);
-	}).detach();
+	std::thread([coordinatorRef, config]() { coordinatorRef->request_dump(config); }).detach();
 }
 
 void dump_dock::OnModeChanged(int)
@@ -285,7 +286,7 @@ void dump_dock::UpdateUiState()
 	const bool isFillMode = static_cast<dump_mode::Mode>(modeInput->currentData().toInt()) == dump_mode::Mode::Fill;
 	const auto selectedFillType = static_cast<dump_mode::FillType>(fillTypeInput->currentData().toInt());
 	const bool isReplayMode = static_cast<pipeline_target>(pipelineTargetInput->currentData().toInt()) ==
-		pipeline_target::ReplayBuffer;
+				  pipeline_target::ReplayBuffer;
 
 	const bool enableFillControls = isFillMode && !isReplayMode;
 	fillTypeInput->setEnabled(enableFillControls);
@@ -300,7 +301,7 @@ void dump_dock::UpdateModeHint()
 {
 	const auto mode = static_cast<dump_mode::Mode>(modeInput->currentData().toInt());
 	const bool isReplayMode = static_cast<pipeline_target>(pipelineTargetInput->currentData().toInt()) ==
-		pipeline_target::ReplayBuffer;
+				  pipeline_target::ReplayBuffer;
 
 	if (isReplayMode) {
 		modeHintLabel->setText(tr_key("dock.hint.replay"));
@@ -319,7 +320,8 @@ void dump_dock::UpdateColorPreview(const QString &text)
 {
 	const QColor color = ParsePreviewColor(text);
 	const QString previewColor = color.isValid() ? color.name(QColor::HexRgb) : QString("#444444");
-	fillColorPreview->setStyleSheet(QString("border: 1px solid palette(mid); border-radius: 3px; background-color: %1;").arg(previewColor));
+	fillColorPreview->setStyleSheet(
+		QString("border: 1px solid palette(mid); border-radius: 3px; background-color: %1;").arg(previewColor));
 }
 
 QColor dump_dock::ParsePreviewColor(QString value) const

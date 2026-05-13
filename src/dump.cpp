@@ -25,11 +25,11 @@ constexpr const char *kReplayCutSuccessMsg = "Replay buffer restarted to drop bu
 constexpr const char *kFillSuccessMsg = "Delay filled with censor content and returned to live scene";
 constexpr const char *kFillInvalidTargetMsg = "Fill target source or scene was not found";
 constexpr const char *kFillSourceCreateFailedMsg = "Failed to create temporary fill source";
-constexpr const char *kStreamDelayInactiveMsg = "OBS stream delay is inactive; enable stream delay in OBS output settings";
+constexpr const char *kStreamDelayInactiveMsg =
+	"OBS stream delay is inactive; enable stream delay in OBS output settings";
 constexpr const char *kBusyMsg = "A dump operation is already in progress";
 
-template <typename Fn>
-auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
+template<typename Fn> auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 {
 	using Result = std::invoke_result_t<Fn>;
 	if (obs_in_task_thread(OBS_TASK_UI)) {
@@ -46,7 +46,8 @@ auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 			Fn fn;
 		};
 		task_payload payload{std::forward<Fn>(fn)};
-		obs_queue_task(OBS_TASK_UI,
+		obs_queue_task(
+			OBS_TASK_UI,
 			[](void *param) {
 				auto *payload = static_cast<task_payload *>(param);
 				payload->fn();
@@ -58,7 +59,8 @@ auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 			std::optional<Result> result;
 		};
 		task_payload payload{std::forward<Fn>(fn), std::nullopt};
-		obs_queue_task(OBS_TASK_UI,
+		obs_queue_task(
+			OBS_TASK_UI,
 			[](void *param) {
 				auto *payload = static_cast<task_payload *>(param);
 				payload->result = payload->fn();
@@ -237,15 +239,14 @@ dump_result obs_runtime_bridge_impl::execute_cut(const dump_config &config)
 		}
 
 		run_on_ui_thread([]() { obs_frontend_replay_buffer_stop(); });
-		if (!wait_until([]() {
-				return !run_on_ui_thread([]() { return obs_frontend_replay_buffer_active(); });
-			},
-			3000)) {
+		if (!wait_until([]() { return !run_on_ui_thread([]() { return obs_frontend_replay_buffer_active(); }); },
+				3000)) {
 			return {dump_result_type::Failure, false, kReplayBufferStopTimeoutMsg};
 		}
 
 		run_on_ui_thread([]() { obs_frontend_replay_buffer_start(); });
-		if (!wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_replay_buffer_active(); }); }, 5000)) {
+		if (!wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_replay_buffer_active(); }); },
+				5000)) {
 			return {dump_result_type::Failure, false, kReplayBufferRestartFailedMsg};
 		}
 
@@ -262,7 +263,8 @@ dump_result obs_runtime_bridge_impl::execute_cut(const dump_config &config)
 		return {dump_result_type::Failure, false, kStreamingOutputUnavailableMsg};
 	}
 
-	const uint32_t activeDelaySeconds = run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
+	const uint32_t activeDelaySeconds =
+		run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
 	if (activeDelaySeconds == 0) {
 		run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
 		return {dump_result_type::Failure, false, kStreamDelayInactiveMsg};
@@ -299,7 +301,8 @@ dump_result obs_runtime_bridge_impl::execute_fill(const dump_config &config)
 		return {dump_result_type::Failure, false, kStreamingOutputUnavailableMsg};
 	}
 
-	const uint32_t activeDelaySeconds = run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
+	const uint32_t activeDelaySeconds =
+		run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
 	run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
 	if (activeDelaySeconds == 0) {
 		return {dump_result_type::Failure, false, kStreamDelayInactiveMsg};
@@ -316,9 +319,7 @@ dump_result obs_runtime_bridge_impl::execute_fill(const dump_config &config)
 		return {dump_result_type::Failure, false, kFillSourceCreateFailedMsg};
 	}
 
-	run_on_ui_thread([scene = fillScene.scene]() {
-		obs_frontend_set_current_scene(obs_scene_get_source(scene));
-	});
+	run_on_ui_thread([scene = fillScene.scene]() { obs_frontend_set_current_scene(obs_scene_get_source(scene)); });
 	os_sleep_ms(static_cast<uint32_t>(config.get_delay_seconds()) * 1000U);
 	run_on_ui_thread([currentScene]() { obs_frontend_set_current_scene(currentScene); });
 
@@ -336,9 +337,7 @@ dump_result obs_runtime_bridge_impl::execute_fill(const dump_config &config)
 	return {dump_result_type::Success, false, kFillSuccessMsg};
 }
 
-dump_coordinator::dump_coordinator(std::unique_ptr<obs_runtime_bridge> bridge_) : bridge(std::move(bridge_))
-{
-}
+dump_coordinator::dump_coordinator(std::unique_ptr<obs_runtime_bridge> bridge_) : bridge(std::move(bridge_)) {}
 
 void dump_coordinator::set_status_callback(status_callback_t callback)
 {

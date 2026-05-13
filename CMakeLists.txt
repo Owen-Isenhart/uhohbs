@@ -31,18 +31,15 @@ endif()
 if(ENABLE_QT)
   # Find the required Qt6 components
   find_package(Qt6 COMPONENTS Widgets Core REQUIRED)
-  
+
   # Link the libraries
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
-  
+
   # Enable automatic processing of Qt macros (MOC, UIC, RCC)
   # This MUST be set so the compiler can handle Q_OBJECT
   set_target_properties(
     ${CMAKE_PROJECT_NAME}
-    PROPERTIES 
-      AUTOMOC ON 
-      AUTOUIC ON 
-      AUTORCC ON
+    PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON
   )
 
   # Suppress common Qt-related compiler warnings if using Clang
@@ -54,16 +51,10 @@ endif()
 
 # --- Sources ---
 # Ensure your main entry point is included here
-target_sources(
-  ${CMAKE_PROJECT_NAME}
-  PRIVATE
-    src/plugin-main.cpp
-    src/dump.cpp
-    src/dump_dock.cpp
-)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.cpp src/dump.cpp src/dump_dock.cpp)
 
 # --- Plugin Finalization ---
-# This helper function sets the output name to 'uhohbs' 
+# This helper function sets the output name to 'uhohbs'
 # and handles the .so suffix and metadata
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
 
@@ -71,12 +62,7 @@ if(ENABLE_TESTS)
   enable_testing()
 
   add_executable(uhohbs_tests)
-  target_sources(
-    uhohbs_tests
-    PRIVATE
-      src/dump.cpp
-      tests/test_dump.cpp
-  )
+  target_sources(uhohbs_tests PRIVATE src/dump.cpp tests/test_dump.cpp)
   target_include_directories(uhohbs_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
   target_link_libraries(uhohbs_tests PRIVATE OBS::libobs)
 
@@ -89,4 +75,13 @@ if(ENABLE_TESTS)
   endif()
 
   add_test(NAME uhohbs_tests COMMAND uhohbs_tests)
+
+  if(WIN32)
+    add_custom_command(
+      TARGET uhohbs_tests
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:uhohbs_tests> $<TARGET_RUNTIME_DLLS:uhohbs_tests>
+      COMMAND_EXPAND_LISTS
+    )
+  endif()
 endif()
