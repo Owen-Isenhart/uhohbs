@@ -77,11 +77,11 @@ if(ENABLE_TESTS)
   add_test(NAME uhohbs_tests COMMAND uhohbs_tests)
 
   if(WIN32)
-    add_custom_command(
-      TARGET uhohbs_tests
-      POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy -t $<TARGET_FILE_DIR:uhohbs_tests> $<TARGET_RUNTIME_DLLS:uhohbs_tests>
-      COMMAND_EXPAND_LISTS
+    set_property(
+      TEST uhohbs_tests
+      APPEND
+      PROPERTY
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<JOIN:$<TARGET_RUNTIME_DLL_DIRS:uhohbs_tests>,$<SEMICOLON>>"
     )
   endif()
 endif()

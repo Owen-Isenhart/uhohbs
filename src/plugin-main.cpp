@@ -55,14 +55,16 @@ bool obs_module_load(void)
 		return false;
 	}
 
-	gShowDockAction = static_cast<QAction *>(obs_frontend_add_tools_menu_qaction(obs_module_text("menu.show_dock")));
+	gShowDockAction =
+		static_cast<QAction *>(obs_frontend_add_tools_menu_qaction(obs_module_text("menu.show_dock")));
 	if (gShowDockAction) {
 		QObject::connect(gShowDockAction, &QAction::triggered, []() {
 			if (!gDock) {
 				return;
 			}
 
-			auto *mainWindow = qobject_cast<QMainWindow *>(static_cast<QWidget *>(obs_frontend_get_main_window()));
+			auto *mainWindow =
+				qobject_cast<QMainWindow *>(static_cast<QWidget *>(obs_frontend_get_main_window()));
 			if (mainWindow) {
 				if (mainWindow->dockWidgetArea(gDock) == Qt::NoDockWidgetArea) {
 					mainWindow->addDockWidget(Qt::LeftDockWidgetArea, gDock);
@@ -77,7 +79,8 @@ bool obs_module_load(void)
 		});
 	}
 
-	gDumpHotkeyId = obs_hotkey_register_frontend("uhohbs.dump", obs_module_text("hotkey.dump"), on_dump_hotkey, nullptr);
+	gDumpHotkeyId =
+		obs_hotkey_register_frontend("uhohbs.dump", obs_module_text("hotkey.dump"), on_dump_hotkey, nullptr);
 	obs_log(LOG_INFO, "registered dump hotkey: id=%llu", static_cast<unsigned long long>(gDumpHotkeyId));
 
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
