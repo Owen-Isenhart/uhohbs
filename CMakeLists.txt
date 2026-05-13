@@ -77,11 +77,17 @@ if(ENABLE_TESTS)
   add_test(NAME uhohbs_tests COMMAND uhohbs_tests)
 
   if(WIN32)
+    set(TEST_PATH_DIRS "")
+    foreach(path IN LISTS CMAKE_PREFIX_PATH)
+      list(APPEND TEST_PATH_DIRS "${path}/bin" "${path}/bin/64bit")
+    endforeach()
+
     set_property(
       TEST uhohbs_tests
       APPEND
       PROPERTY
-        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<JOIN:$<TARGET_RUNTIME_DLL_DIRS:uhohbs_tests>,$<SEMICOLON>>"
+        ENVIRONMENT_MODIFICATION
+          "PATH=path_list_prepend:$<JOIN:${TEST_PATH_DIRS},$<SEMICOLON>>$<SEMICOLON>$<JOIN:$<TARGET_RUNTIME_DLL_DIRS:uhohbs_tests>,$<SEMICOLON>>"
     )
   endif()
 endif()
