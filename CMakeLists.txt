@@ -76,28 +76,32 @@ if(ENABLE_TESTS)
 
   add_test(NAME uhohbs_tests COMMAND uhohbs_tests)
 
-  if(WIN32)
-    set(TEST_PATH_DIRS "")
-    foreach(path IN LISTS CMAKE_PREFIX_PATH)
-      list(APPEND TEST_PATH_DIRS "${path}/bin" "${path}/bin/64bit")
-    endforeach()
+  set(TEST_PATH_DIRS "")
+  foreach(path IN LISTS CMAKE_PREFIX_PATH)
+    list(APPEND TEST_PATH_DIRS "${path}/bin" "${path}/bin/64bit" "${path}/lib")
+  endforeach()
 
-    file(GLOB OBS_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-*/build_x64")
-    if(OBS_BUILD_DIR)
-      list(APPEND TEST_PATH_DIRS "${OBS_BUILD_DIR}/libobs/Release" "${OBS_BUILD_DIR}/libobs/Debug")
-      list(
-        APPEND TEST_PATH_DIRS
-        "${OBS_BUILD_DIR}/UI/obs-frontend-api/Release"
-        "${OBS_BUILD_DIR}/UI/obs-frontend-api/Debug"
-      )
-    endif()
-
-    set_property(
-      TEST uhohbs_tests
-      APPEND
-      PROPERTY
-        ENVIRONMENT_MODIFICATION
-          "PATH=path_list_prepend:$<JOIN:${TEST_PATH_DIRS},$<SEMICOLON>>$<SEMICOLON>$<JOIN:$<TARGET_RUNTIME_DLL_DIRS:uhohbs_tests>,$<SEMICOLON>>"
+  file(GLOB OBS_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-*/build_*")
+  if(OBS_BUILD_DIR)
+    list(APPEND TEST_PATH_DIRS "${OBS_BUILD_DIR}/libobs/Release" "${OBS_BUILD_DIR}/libobs/Debug")
+    list(
+      APPEND TEST_PATH_DIRS
+      "${OBS_BUILD_DIR}/UI/obs-frontend-api/Release"
+      "${OBS_BUILD_DIR}/UI/obs-frontend-api/Debug"
     )
+  endif()
+
+  set(ENV_MOD_LIST "")
+  foreach(path IN LISTS TEST_PATH_DIRS)
+    if(WIN32)
+      list(APPEND ENV_MOD_LIST "PATH=path_list_prepend:${path}")
+    elseif(APPLE)
+      list(APPEND ENV_MOD_LIST "DYLD_FRAMEWORK_PATH=path_list_prepend:${path}")
+      list(APPEND ENV_MOD_LIST "DYLD_LIBRARY_PATH=path_list_prepend:${path}")
+    endif()
+  endforeach()
+
+  if(ENV_MOD_LIST)
+    set_property(TEST uhohbs_tests APPEND PROPERTY ENVIRONMENT_MODIFICATION ${ENV_MOD_LIST})
   endif()
 endif()
