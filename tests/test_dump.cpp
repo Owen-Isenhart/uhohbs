@@ -94,7 +94,6 @@ void test_coordinator_cut_path()
 	EXPECT_EQ(static_cast<int>(statuses[1].type), static_cast<int>(dump_result_type::Success));
 }
 
-
 int run_all_tests()
 {
 	const std::vector<test_case> tests = {

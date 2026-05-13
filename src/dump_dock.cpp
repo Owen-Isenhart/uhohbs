@@ -121,7 +121,6 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 			self->SetStatus(QString::fromStdString(result.message), true, false);
 		});
 	});
-
 }
 
 void dump_dock::trigger_dump_from_hotkey()

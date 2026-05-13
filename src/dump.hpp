@@ -7,7 +7,6 @@
 
 #include <obs-frontend-api.h>
 
-
 enum class dump_result_type {
 	InProgress,
 	Success,

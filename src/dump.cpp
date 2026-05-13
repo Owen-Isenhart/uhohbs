@@ -72,9 +72,9 @@ class stream_event_waiter {
 	std::mutex m;
 	std::condition_variable cv;
 
-	static void callback(enum obs_frontend_event event, void *private_data) {
-		if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED || 
-			event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
+	static void callback(enum obs_frontend_event event, void *private_data)
+	{
+		if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
 			auto *waiter = static_cast<stream_event_waiter *>(private_data);
 			std::lock_guard<std::mutex> lock(waiter->m);
 			waiter->cv.notify_all();
@@ -82,19 +82,18 @@ class stream_event_waiter {
 	}
 
 public:
-	stream_event_waiter() {
-		run_on_ui_thread([this]() {
-			obs_frontend_add_event_callback(callback, this);
-		});
+	stream_event_waiter()
+	{
+		run_on_ui_thread([this]() { obs_frontend_add_event_callback(callback, this); });
 	}
 
-	~stream_event_waiter() {
-		run_on_ui_thread([this]() {
-			obs_frontend_remove_event_callback(callback, this);
-		});
+	~stream_event_waiter()
+	{
+		run_on_ui_thread([this]() { obs_frontend_remove_event_callback(callback, this); });
 	}
 
-	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs) {
+	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs)
+	{
 		std::unique_lock<std::mutex> lock(m);
 		auto now = std::chrono::steady_clock::now();
 		auto end_time = now + std::chrono::milliseconds(timeoutMs);
@@ -202,12 +201,11 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 		});
 	}
 
-	const uint32_t restartTimeoutMs =
-		std::max<uint32_t>(10000, (activeDelaySeconds + 5) * 1000u);
+	const uint32_t restartTimeoutMs = std::max<uint32_t>(10000, (activeDelaySeconds + 5) * 1000u);
 
 	run_on_ui_thread([]() { obs_frontend_streaming_start(); });
 	if (!waiter.wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_streaming_active(); }); },
-			restartTimeoutMs)) {
+			       restartTimeoutMs)) {
 		is_internal_stop = false;
 		return {dump_result_type::Failure, kStreamRestartFailedMsg};
 	}
