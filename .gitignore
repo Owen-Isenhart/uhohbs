@@ -16,7 +16,7 @@
 !LICENSE
 !README.md
 !test.sh
-
+!/tests
 # Exclude lock files
 *.lock.json
 

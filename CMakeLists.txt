@@ -8,6 +8,7 @@ project(${_name} VERSION ${_version})
 # Options for feature toggling
 option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" ON)
 option(ENABLE_QT "Use Qt functionality" ON)
+option(ENABLE_TESTS "Build unit tests" ON)
 
 include(compilerconfig)
 include(defaults)
@@ -65,3 +66,27 @@ target_sources(
 # This helper function sets the output name to 'uhohbs' 
 # and handles the .so suffix and metadata
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+
+if(ENABLE_TESTS)
+  enable_testing()
+
+  add_executable(uhohbs_tests)
+  target_sources(
+    uhohbs_tests
+    PRIVATE
+      src/dump.cpp
+      tests/test_dump.cpp
+  )
+  target_include_directories(uhohbs_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(uhohbs_tests PRIVATE OBS::libobs)
+
+  if(ENABLE_FRONTEND_API)
+    target_link_libraries(uhohbs_tests PRIVATE OBS::obs-frontend-api)
+  endif()
+
+  if(TARGET plugin-support)
+    target_link_libraries(uhohbs_tests PRIVATE plugin-support)
+  endif()
+
+  add_test(NAME uhohbs_tests COMMAND uhohbs_tests)
+endif()
