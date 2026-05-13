@@ -31,11 +31,11 @@ if [ ! -f "$DEST/$NEW_NAME.so" ]; then
     exit 1
 fi
 
-if [ -f "data/locale/en-US.ini" ]; then
-    cp "data/locale/en-US.ini" "$LOCALE_DEST/en-US.ini"
-    echo "Locale deployed to: $LOCALE_DEST/en-US.ini"
+if [ -d "data/locale" ]; then
+    cp data/locale/*.ini "$LOCALE_DEST/"
+    echo "Locales deployed to: $LOCALE_DEST/"
 else
-    echo "Warning: data/locale/en-US.ini not found; UI text may show localization keys."
+    echo "Warning: data/locale directory not found; UI text may show localization keys."
 fi
 
 echo "Plugin deployed to: $DEST/$NEW_NAME.so"
