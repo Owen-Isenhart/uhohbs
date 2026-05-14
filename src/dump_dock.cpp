@@ -1,13 +1,13 @@
 #include "dump_dock.hpp"
 
+#include <QCoreApplication>
 #include <QMetaObject>
 #include <QPointer>
 #include <QSizePolicy>
 #include <QString>
 #include <QStringList>
 #include <QVBoxLayout>
-#include <QEventLoop>
-#include <QTimer>
+
 
 #include <thread>
 
@@ -105,11 +105,12 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 
 	QPointer<dump_dock> self(this);
 	coordinator->set_status_callback([self](const dump_result &result) {
-		if (!self) {
+		auto *app = QCoreApplication::instance();
+		if (!app) {
 			return;
 		}
 
-		QMetaObject::invokeMethod(self, [self, result]() {
+		QMetaObject::invokeMethod(app, [self, result]() {
 			if (!self) {
 				return;
 			}
@@ -127,7 +128,7 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 			const QString raw = QString::fromStdString(result.message);
 			const QString localized = QString::fromUtf8(obs_module_text(result.message.c_str()));
 			self->SetStatus(localized == raw ? raw : localized, true, false);
-		});
+		}, Qt::QueuedConnection);
 	});
 }
 
@@ -158,23 +159,6 @@ void dump_dock::shutdown()
 	}
 
 	coordinator->request_cancel();
-	if (!dumpThread.joinable()) {
-		return;
-	}
-
-	if (dumpThreadActive.load()) {
-		QEventLoop loop;
-		QTimer timer;
-		timer.setInterval(25);
-		QObject::connect(&timer, &QTimer::timeout, this, [&]() {
-			if (!dumpThreadActive.load()) {
-				loop.quit();
-			}
-		});
-		timer.start();
-		loop.exec();
-	}
-
 	if (dumpThread.joinable()) {
 		dumpThread.join();
 	}
@@ -186,17 +170,16 @@ void dump_dock::HandleDump()
 		return;
 	}
 
-	const bool skipDelay = skipDelayCheckbox->isChecked();
-	if (coordinator->in_progress()) {
+	if (dumpThreadActive.exchange(true)) {
 		return;
 	}
 
+	const bool skipDelay = skipDelayCheckbox->isChecked();
 	if (dumpThread.joinable()) {
 		dumpThread.join();
 	}
 
 	const auto coordinatorRef = coordinator;
-	dumpThreadActive.store(true);
 	dumpThread = std::thread([this, coordinatorRef, skipDelay]() {
 		(void)coordinatorRef->request_dump(skipDelay);
 		dumpThreadActive.store(false);
