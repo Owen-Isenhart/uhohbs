@@ -12,7 +12,7 @@ Here is what it looks like for the streamer when an "uh-oh" moment occurs and th
 
 And here is what that exact same moment looks like to the viewers on Twitch:
 
-<video src="https://github.com/user-attachments/assets/af68c51e-8a02-4afb-bb65-701d7085acc6" controls="controls" width="100%"></video>
+<video src="https://github.com/user-attachments/assets/142a300c-4add-445c-bfd5-c3f62d847c49" controls="controls" width="100%"></video>
 
 ## What It Does
 
