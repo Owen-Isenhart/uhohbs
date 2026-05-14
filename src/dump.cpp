@@ -90,10 +90,6 @@ template<typename Fn> auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 
 template<typename Fn> void run_on_ui_thread_async(Fn &&fn)
 {
-	if (obs_in_task_thread(OBS_TASK_UI)) {
-		fn();
-		return;
-	}
 	auto *heap_fn = new std::decay_t<Fn>(std::forward<Fn>(fn));
 	obs_queue_task(
 		OBS_TASK_UI,
@@ -208,6 +204,12 @@ public:
 private:
 	obs_output_t *output{nullptr};
 };
+
+struct scoped_atomic_flag {
+	std::atomic<bool> &flag;
+	explicit scoped_atomic_flag(std::atomic<bool> &f) : flag(f) { flag.store(true); }
+	~scoped_atomic_flag() { flag.store(false); }
+};
 } // namespace
 
 obs_runtime_bridge_impl::obs_runtime_bridge_impl()
@@ -292,7 +294,7 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 
 	stream_event_waiter waiter;
 
-	is_internal_stop = true;
+	scoped_atomic_flag internal_stop(is_internal_stop);
 	run_on_ui_thread([streamOutput = streamOutputGuard.get()]() { obs_output_force_stop(streamOutput); });
 
 	const auto stream_stopped = [streamOutput = streamOutputGuard.get()]() {
@@ -302,7 +304,6 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 	};
 
 	if (!waiter.wait_until(stream_stopped, 5000, [this]() { return cancelRequested.load(); })) {
-		is_internal_stop = false;
 		if (cancelRequested.load()) {
 			return {dump_result_type::Failure, kCancelledMsg};
 		}
@@ -321,7 +322,6 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 	}
 
 	if (cancelRequested.load()) {
-		is_internal_stop = false;
 		return {dump_result_type::Failure, kCancelledMsg};
 	}
 
@@ -330,7 +330,6 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 	run_on_ui_thread([]() { obs_frontend_streaming_start(); });
 	if (!waiter.wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_streaming_active(); }); },
 			       restartTimeoutMs, [this]() { return cancelRequested.load(); })) {
-		is_internal_stop = false;
 		if (cancelRequested.load()) {
 			return {dump_result_type::Failure, kCancelledMsg};
 		}
@@ -338,7 +337,6 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 		return {dump_result_type::Failure, kStreamRestartFailedMsg};
 	}
 
-	is_internal_stop = false;
 	obs_log(LOG_INFO, "%s", kCutSuccessMsg);
 	return {dump_result_type::Success, kCutSuccessMsg};
 }
@@ -373,7 +371,12 @@ dump_result dump_coordinator::request_dump(bool disable_delay)
 	notify_status(inProgressResult);
 
 	dump_result result;
-	result = bridge->execute_cut(disable_delay);
+	try {
+		result = bridge->execute_cut(disable_delay);
+	} catch (...) {
+		operationInProgress.store(false);
+		throw;
+	}
 
 	operationInProgress.store(false);
 	notify_status(result);
