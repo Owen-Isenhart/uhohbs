@@ -88,14 +88,38 @@ template<typename Fn> auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 	}
 }
 
+template<typename Fn> void run_on_ui_thread_async(Fn &&fn)
+{
+	if (obs_in_task_thread(OBS_TASK_UI)) {
+		fn();
+		return;
+	}
+	auto *heap_fn = new std::decay_t<Fn>(std::forward<Fn>(fn));
+	obs_queue_task(
+		OBS_TASK_UI,
+		[](void *param) {
+			auto *f = static_cast<std::decay_t<Fn> *>(param);
+			try {
+				(*f)();
+			} catch (...) {
+			}
+			delete f;
+		},
+		heap_fn, false);
+}
+
 class stream_event_waiter {
 	std::mutex m;
 	std::condition_variable cv;
+	std::atomic<bool> dead{false};
 
 	static void callback(enum obs_frontend_event event, void *private_data)
 	{
 		if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
 			auto *waiter = static_cast<stream_event_waiter *>(private_data);
+			if (waiter->dead.load(std::memory_order_acquire)) {
+				return;
+			}
 			std::lock_guard<std::mutex> lock(waiter->m);
 			waiter->cv.notify_all();
 		}
@@ -109,10 +133,11 @@ public:
 
 	~stream_event_waiter() noexcept
 	{
-		try {
-			run_on_ui_thread([this]() { obs_frontend_remove_event_callback(callback, this); });
-		} catch (...) {
-		}
+		dead.store(true, std::memory_order_seq_cst);
+		run_on_ui_thread_async(
+			[fn = &stream_event_waiter::callback, data = static_cast<void *>(this)]() {
+				obs_frontend_remove_event_callback(fn, data);
+			});
 	}
 
 	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs,
@@ -168,12 +193,7 @@ public:
 	void reset(obs_output_t *new_output = nullptr) noexcept
 	{
 		if (output) {
-			try {
-				run_on_ui_thread([ptr = output]() { obs_output_release(ptr); });
-			} catch (...) {
-				obs_log(LOG_WARNING,
-					"obs_output_guard: failed to release output on UI thread, reference leaked");
-			}
+			obs_output_release(output);
 		}
 		output = new_output;
 	}
