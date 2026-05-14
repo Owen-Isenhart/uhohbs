@@ -1,8 +1,6 @@
 # uhohbs
 
-uhohbs is an OBS plugin that provides a "dump button" for delayed live streams. It saves you from those accidental "uh-oh" moments that inevitably happen while live.
-
-It perfectly mimics professional broadcast profanity-delay workflows by immediately discarding your currently buffered delayed stream content before it ever reaches your viewers.
+uhohbs is an OBS plugin that provides a "dump button" for live streams. It saves you from those accidental "uh-oh" moments that inevitably happen while live.
 
 ## See it in Action
 
@@ -23,16 +21,16 @@ When triggered, it force-stops and instantly restarts your streaming output to s
 ## How To Use In OBS
 
 1. Go to **Settings** → **Advanced** in OBS.
-2. In the **Stream Delay** section, turn on **Enable** and set your desired **Duration** (e.g., 10s).
-3. Open the plugin dock: **View** → **Docks** → **uhohbs Control**. (If it's missing, check **Tools** → **Show uhohbs Control Dock**).
+2. In the **Stream Delay** section, turn on **Enable** and set your desired **Duration** (most streaming sites automatically have a ~3 second delay, so you can add what you want on top of that).
+3. Open the plugin dock: **View** → **Docks** → **uhohbs Control**. (If it's missing, check **Tools** → **Show uhohbs Control Dock**, sometimes OBS is weird and doesn't show it in docks).
 4. Configure the hotkey (optional): Go to **Settings** → **Hotkeys** and assign a key to `uhohbs: Trigger Dump`.
 5. When an "uh-oh" moment happens on stream, simply press the **Dump** button in the dock (or your assigned hotkey) to immediately cut the delayed frames.
 6. **(Optional)** If you check the **Disable delay after dump (One-time use)** option in the dock, dumping will force the stream to restart instantly without rebuilding the delay buffer. This ensures a much faster recovery time for viewers, but restricts the dump button to a single use for the remainder of that stream. Your original delay settings will be automatically restored for your next broadcast.
 
 ## Safety Notes
 
-- This plugin depends on OBS stream delay being enabled.
-- `Cut` for live stream delay briefly interrupts and restarts the stream output.
+- This plugin depends on OBS stream delay being enabled. It doesn't have to be a long delay by any means, but if you're someone who absoultely refuses to have any delay, this plugin is not for you.
+- Since it works by immediately force quitting, dropping delay frames, and restarting the stream, any VODs will likely be split
 - Test your setup privately before using it in production.
 
 ## Build (Linux)
@@ -88,12 +86,6 @@ If your environment uses a different preset, choose the matching value from `CMa
 ## Install
 
 Copy the built plugin artifacts into your OBS plugin directory for your platform, then restart OBS.
-
-## Development Status
-
-- Core dock UI, hotkey integration, and dump coordinator are implemented.
-- Stream delay path is present.
-- Project metadata in `buildspec.json` still contains template placeholder values and should be updated before release.
 
 ## License
 
