@@ -24,6 +24,7 @@ public:
 
 	virtual bool is_streaming_active() const = 0;
 	virtual dump_result execute_cut(bool disable_delay) = 0;
+	virtual void request_cancel() = 0;
 };
 
 class obs_runtime_bridge_impl final : public obs_runtime_bridge {
@@ -33,6 +34,7 @@ public:
 
 	bool is_streaming_active() const override;
 	dump_result execute_cut(bool disable_delay) override;
+	void request_cancel() override;
 
 private:
 	static void frontend_event_callback(enum obs_frontend_event event, void *private_data);
@@ -41,6 +43,7 @@ private:
 
 	std::atomic<bool> is_internal_stop{false};
 	std::atomic<bool> has_saved_delay{false};
+	std::atomic<bool> cancelRequested{false};
 	bool original_delay_enable{false};
 };
 
@@ -54,6 +57,7 @@ public:
 	void set_status_callback(status_callback_t callback);
 	bool in_progress() const;
 	dump_result request_dump(bool disable_delay);
+	void request_cancel();
 
 private:
 	void notify_status(const dump_result &result) const;
@@ -61,4 +65,5 @@ private:
 	std::unique_ptr<obs_runtime_bridge> bridge;
 	status_callback_t statusCallback;
 	std::atomic<bool> operationInProgress{false};
+	std::atomic<bool> cancelRequested{false};
 };

@@ -27,6 +27,7 @@ constexpr const char *kCutSuccessMsg = "Delay cut triggered";
 constexpr const char *kStreamDelayInactiveMsg =
 	"OBS stream delay is inactive; enable stream delay in OBS output settings";
 constexpr const char *kBusyMsg = "A dump operation is already in progress";
+constexpr const char *kCancelledMsg = "Dump operation cancelled";
 
 template<typename Fn> auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 {
@@ -109,18 +110,27 @@ public:
 		run_on_ui_thread([this]() { obs_frontend_remove_event_callback(callback, this); });
 	}
 
-	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs)
+	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs,
+			std::function<bool()> should_abort = {})
 	{
-		std::unique_lock<std::mutex> lock(m);
-		auto now = std::chrono::steady_clock::now();
-		auto end_time = now + std::chrono::milliseconds(timeoutMs);
+		auto end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
 
-		while (now < end_time) {
+		while (std::chrono::steady_clock::now() < end_time) {
+			if (should_abort && should_abort()) {
+				return false;
+			}
 			if (predicate()) {
 				return true;
 			}
+			std::unique_lock<std::mutex> lock(m);
+			auto now = std::chrono::steady_clock::now();
+			if (now >= end_time) {
+				break;
+			}
 			cv.wait_for(lock, std::chrono::milliseconds(250));
-			now = std::chrono::steady_clock::now();
+		}
+		if (should_abort && should_abort()) {
+			return false;
 		}
 		return predicate();
 	}
@@ -176,8 +186,17 @@ bool obs_runtime_bridge_impl::is_streaming_active() const
 	return run_on_ui_thread([]() { return obs_frontend_streaming_active(); });
 }
 
+void obs_runtime_bridge_impl::request_cancel()
+{
+	cancelRequested.store(true);
+}
+
 dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 {
+	if (cancelRequested.load()) {
+		return {dump_result_type::Failure, kCancelledMsg};
+	}
+
 	if (!is_streaming_active()) {
 		return {dump_result_type::Failure, kNotStreamingMsg};
 	}
@@ -186,11 +205,19 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 	if (!streamOutput) {
 		return {dump_result_type::Failure, kStreamingOutputUnavailableMsg};
 	}
+	auto release_stream_output = [streamOutput]() {
+		run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
+	};
+
+	if (cancelRequested.load()) {
+		release_stream_output();
+		return {dump_result_type::Failure, kCancelledMsg};
+	}
 
 	const uint32_t activeDelaySeconds =
 		run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
 	if (activeDelaySeconds == 0) {
-		run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
+		release_stream_output();
 		return {dump_result_type::Failure, kStreamDelayInactiveMsg};
 	}
 
@@ -205,13 +232,16 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 		});
 	};
 
-	if (!waiter.wait_until(stream_stopped, 5000)) {
-		run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
+	if (!waiter.wait_until(stream_stopped, 5000, [this]() { return cancelRequested.load(); })) {
+		release_stream_output();
 		is_internal_stop = false;
+		if (cancelRequested.load()) {
+			return {dump_result_type::Failure, kCancelledMsg};
+		}
 		return {dump_result_type::Failure, kStreamStopTimeoutMsg};
 	}
 
-	run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
+	release_stream_output();
 
 	if (disable_delay && !has_saved_delay.load()) {
 		run_on_ui_thread([this]() {
@@ -224,13 +254,22 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 		});
 	}
 
+	if (cancelRequested.load()) {
+		is_internal_stop = false;
+		restore_delay_if_needed();
+		return {dump_result_type::Failure, kCancelledMsg};
+	}
+
 	const uint32_t restartTimeoutMs = std::max<uint32_t>(10000, (activeDelaySeconds + 5) * 1000u);
 
 	run_on_ui_thread([]() { obs_frontend_streaming_start(); });
 	if (!waiter.wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_streaming_active(); }); },
-			       restartTimeoutMs)) {
+			       restartTimeoutMs, [this]() { return cancelRequested.load(); })) {
 		is_internal_stop = false;
 		restore_delay_if_needed();
+		if (cancelRequested.load()) {
+			return {dump_result_type::Failure, kCancelledMsg};
+		}
 		return {dump_result_type::Failure, kStreamRestartFailedMsg};
 	}
 
@@ -253,6 +292,12 @@ bool dump_coordinator::in_progress() const
 
 dump_result dump_coordinator::request_dump(bool disable_delay)
 {
+	if (cancelRequested.load()) {
+		const dump_result cancelledResult{dump_result_type::Failure, kCancelledMsg};
+		notify_status(cancelledResult);
+		return cancelledResult;
+	}
+
 	if (operationInProgress.exchange(true)) {
 		const dump_result busyResult{dump_result_type::Failure, kBusyMsg};
 		notify_status(busyResult);
@@ -268,6 +313,12 @@ dump_result dump_coordinator::request_dump(bool disable_delay)
 	operationInProgress.store(false);
 	notify_status(result);
 	return result;
+}
+
+void dump_coordinator::request_cancel()
+{
+	cancelRequested.store(true);
+	bridge->request_cancel();
 }
 
 void dump_coordinator::notify_status(const dump_result &result) const

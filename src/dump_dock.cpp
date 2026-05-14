@@ -7,6 +7,8 @@
 #include <QStringList>
 #include <QVBoxLayout>
 #include <QSettings>
+#include <QEventLoop>
+#include <QTimer>
 
 #include <thread>
 
@@ -125,9 +127,7 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 
 dump_dock::~dump_dock()
 {
-	if (dumpThread.joinable()) {
-		dumpThread.join();
-	}
+	shutdown();
 }
 
 void dump_dock::trigger_dump_from_hotkey()
@@ -140,8 +140,41 @@ void dump_dock::TriggerDump()
 	HandleDump();
 }
 
+void dump_dock::shutdown()
+{
+	if (shutdownRequested.exchange(true)) {
+		return;
+	}
+
+	coordinator->request_cancel();
+	if (!dumpThread.joinable()) {
+		return;
+	}
+
+	if (dumpThreadActive.load()) {
+		QEventLoop loop;
+		QTimer timer;
+		timer.setInterval(25);
+		QObject::connect(&timer, &QTimer::timeout, this, [&]() {
+			if (!dumpThreadActive.load()) {
+				loop.quit();
+			}
+		});
+		timer.start();
+		loop.exec();
+	}
+
+	if (dumpThread.joinable()) {
+		dumpThread.join();
+	}
+}
+
 void dump_dock::HandleDump()
 {
+	if (shutdownRequested.load()) {
+		return;
+	}
+
 	const bool skipDelay = skipDelayCheckbox->isChecked();
 	if (coordinator->in_progress()) {
 		coordinator->request_dump(skipDelay);
@@ -153,7 +186,11 @@ void dump_dock::HandleDump()
 	}
 
 	const auto coordinatorRef = coordinator;
-	dumpThread = std::thread([coordinatorRef, skipDelay]() { coordinatorRef->request_dump(skipDelay); });
+	dumpThreadActive.store(true);
+	dumpThread = std::thread([this, coordinatorRef, skipDelay]() {
+		coordinatorRef->request_dump(skipDelay);
+		dumpThreadActive.store(false);
+	});
 }
 
 void dump_dock::SetStatus(const QString &text, bool isError, bool inProgress)

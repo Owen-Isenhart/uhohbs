@@ -73,6 +73,8 @@ struct fake_bridge final : public obs_runtime_bridge {
 		++cutCalls;
 		return cutResult;
 	}
+
+	void request_cancel() override {}
 };
 
 void test_coordinator_cut_path()

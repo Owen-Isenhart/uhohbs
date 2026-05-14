@@ -6,6 +6,7 @@
 #include <QCheckBox>
 #include <QWidget>
 #include <QColor>
+#include <atomic>
 #include <memory>
 #include <thread>
 
@@ -19,6 +20,7 @@ public:
 	~dump_dock() override;
 
 	void trigger_dump_from_hotkey();
+	void shutdown();
 
 signals:
 	void dump_requested();
@@ -39,4 +41,6 @@ private:
 
 	std::shared_ptr<dump_coordinator> coordinator;
 	std::thread dumpThread;
+	std::atomic<bool> dumpThreadActive{false};
+	std::atomic<bool> shutdownRequested{false};
 };
