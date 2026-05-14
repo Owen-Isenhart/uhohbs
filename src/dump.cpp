@@ -134,7 +134,7 @@ public:
 	~stream_event_waiter() noexcept
 	{
 		dead.store(true, std::memory_order_seq_cst);
-		run_on_ui_thread_async(
+		run_on_ui_thread(
 			[fn = &stream_event_waiter::callback, data = static_cast<void *>(this)]() {
 				obs_frontend_remove_event_callback(fn, data);
 			});
