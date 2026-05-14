@@ -5,7 +5,7 @@
 #include <QPushButton>
 #include <QCheckBox>
 #include <QWidget>
-#include <QColor>
+
 #include <atomic>
 #include <memory>
 #include <thread>
@@ -37,7 +37,7 @@ private:
 	QPushButton *dumpButton{nullptr};
 	QCheckBox *skipDelayCheckbox{nullptr};
 	QLabel *statusLabel{nullptr};
-	QColor statusDefaultColor;
+
 
 	std::shared_ptr<dump_coordinator> coordinator;
 	std::thread dumpThread;

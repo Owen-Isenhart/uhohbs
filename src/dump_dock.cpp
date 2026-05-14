@@ -6,14 +6,15 @@
 #include <QString>
 #include <QStringList>
 #include <QVBoxLayout>
-#include <QSettings>
 #include <QEventLoop>
 #include <QTimer>
 
 #include <thread>
 
+#include <obs-frontend-api.h>
 #include <obs-module.h>
 #include <obs.h>
+#include <util/config-file.h>
 
 namespace {
 QString prettify_missing_key(const QString &key)
@@ -75,11 +76,14 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 	skipDelayCheckbox = new QCheckBox(tr_key("dock.skip_delay"), container);
 	skipDelayCheckbox->setObjectName("uhohbs_skip_delay_checkbox");
 	skipDelayCheckbox->setToolTip(tr_key("dock.skip_delay.help"));
-	QSettings settings("Uhohbs", "DumpDock");
-	skipDelayCheckbox->setChecked(settings.value("skipDelay", false).toBool());
+	if (config_t *profile = obs_frontend_get_profile_config()) {
+		skipDelayCheckbox->setChecked(config_get_bool(profile, "Uhohbs", "SkipDelay"));
+	}
 	connect(skipDelayCheckbox, &QCheckBox::toggled, [](bool checked) {
-		QSettings settings("Uhohbs", "DumpDock");
-		settings.setValue("skipDelay", checked);
+		if (config_t *profile = obs_frontend_get_profile_config()) {
+			config_set_bool(profile, "Uhohbs", "SkipDelay", checked);
+			config_save(profile);
+		}
 	});
 	rootLayout->addWidget(skipDelayCheckbox);
 
@@ -89,7 +93,7 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 	statusLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
 	rootLayout->addWidget(statusLabel);
 	rootLayout->addStretch(1);
-	statusDefaultColor = statusLabel->palette().color(statusLabel->foregroundRole());
+
 
 	container->setStyleSheet("QWidget#uhohbs_root { background: palette(base); }"
 				 "QPushButton#uhohbs_dump_button { letter-spacing: 0.2px; }");
@@ -120,7 +124,9 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 				return;
 			}
 
-			self->SetStatus(QString::fromStdString(result.message), true, false);
+			const QString raw = QString::fromStdString(result.message);
+			const QString localized = QString::fromUtf8(obs_module_text(result.message.c_str()));
+			self->SetStatus(localized == raw ? raw : localized, true, false);
 		});
 	});
 }
@@ -177,7 +183,7 @@ void dump_dock::HandleDump()
 
 	const bool skipDelay = skipDelayCheckbox->isChecked();
 	if (coordinator->in_progress()) {
-		coordinator->request_dump(skipDelay);
+		(void)coordinator->request_dump(skipDelay);
 		return;
 	}
 
@@ -188,7 +194,7 @@ void dump_dock::HandleDump()
 	const auto coordinatorRef = coordinator;
 	dumpThreadActive.store(true);
 	dumpThread = std::thread([this, coordinatorRef, skipDelay]() {
-		coordinatorRef->request_dump(skipDelay);
+		(void)coordinatorRef->request_dump(skipDelay);
 		dumpThreadActive.store(false);
 	});
 }
@@ -196,7 +202,7 @@ void dump_dock::HandleDump()
 void dump_dock::SetStatus(const QString &text, bool isError, bool inProgress)
 {
 	statusLabel->setText(text);
-	statusLabel->setStyleSheet(isError ? "color: #d64b4b;" : QString("color: %1;").arg(statusDefaultColor.name()));
+	statusLabel->setStyleSheet(isError ? "color: #d64b4b;" : "");
 	dumpButton->setEnabled(!inProgress);
 	skipDelayCheckbox->setEnabled(!inProgress);
 }

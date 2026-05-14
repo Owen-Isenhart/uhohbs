@@ -1,6 +1,7 @@
 #include "dump.hpp"
 
 #include <obs-frontend-api.h>
+#include <obs-module.h>
 #include <obs.h>
 #include <plugin-support.h>
 #include <util/config-file.h>
@@ -18,16 +19,15 @@
 #include <utility>
 
 namespace {
-constexpr const char *kInProgressMsg = "Dump operation started";
-constexpr const char *kNotStreamingMsg = "Streaming is not active";
-constexpr const char *kStreamingOutputUnavailableMsg = "Streaming output is unavailable";
-constexpr const char *kStreamStopTimeoutMsg = "Timed out waiting for stream to stop during delay cut";
-constexpr const char *kStreamRestartFailedMsg = "Delay cut stopped stream, but restart failed";
-constexpr const char *kCutSuccessMsg = "Delay cut triggered";
-constexpr const char *kStreamDelayInactiveMsg =
-	"OBS stream delay is inactive; enable stream delay in OBS output settings";
-constexpr const char *kBusyMsg = "A dump operation is already in progress";
-constexpr const char *kCancelledMsg = "Dump operation cancelled";
+constexpr const char *kInProgressMsg = "status.in_progress";
+constexpr const char *kNotStreamingMsg = "error.not_streaming";
+constexpr const char *kStreamingOutputUnavailableMsg = "error.output_unavailable";
+constexpr const char *kStreamStopTimeoutMsg = "error.stream_stop_timeout";
+constexpr const char *kStreamRestartFailedMsg = "error.stream_restart_failed";
+constexpr const char *kCutSuccessMsg = "status.success";
+constexpr const char *kStreamDelayInactiveMsg = "error.stream_delay_inactive";
+constexpr const char *kBusyMsg = "status.busy";
+constexpr const char *kCancelledMsg = "status.cancelled";
 
 template<typename Fn> auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 {
@@ -135,6 +135,45 @@ public:
 		return predicate();
 	}
 };
+
+class obs_output_guard {
+public:
+	explicit obs_output_guard(obs_output_t *output) : output(output) {}
+	obs_output_guard(const obs_output_guard &) = delete;
+	obs_output_guard &operator=(const obs_output_guard &) = delete;
+
+	obs_output_guard(obs_output_guard &&other) noexcept : output(other.output)
+	{
+		other.output = nullptr;
+	}
+	obs_output_guard &operator=(obs_output_guard &&other) noexcept
+	{
+		if (this != &other) {
+			reset();
+			output = other.output;
+			other.output = nullptr;
+		}
+		return *this;
+	}
+
+	~obs_output_guard() noexcept { reset(); }
+
+	obs_output_t *get() const { return output; }
+
+	void reset(obs_output_t *new_output = nullptr) noexcept
+	{
+		if (output) {
+			try {
+				run_on_ui_thread([ptr = output]() { obs_output_release(ptr); });
+			} catch (...) {
+			}
+		}
+		output = new_output;
+	}
+
+private:
+	obs_output_t *output{nullptr};
+};
 } // namespace
 
 obs_runtime_bridge_impl::obs_runtime_bridge_impl()
@@ -205,43 +244,36 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 	if (!streamOutput) {
 		return {dump_result_type::Failure, kStreamingOutputUnavailableMsg};
 	}
-	auto release_stream_output = [streamOutput]() {
-		run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
-	};
+	obs_output_guard streamOutputGuard(streamOutput);
 
 	if (cancelRequested.load()) {
-		release_stream_output();
 		return {dump_result_type::Failure, kCancelledMsg};
 	}
 
-	const uint32_t activeDelaySeconds =
-		run_on_ui_thread([streamOutput]() { return obs_output_get_active_delay(streamOutput); });
+	const uint32_t activeDelaySeconds = run_on_ui_thread(
+		[streamOutput = streamOutputGuard.get()]() { return obs_output_get_active_delay(streamOutput); });
 	if (activeDelaySeconds == 0) {
-		release_stream_output();
 		return {dump_result_type::Failure, kStreamDelayInactiveMsg};
 	}
 
 	stream_event_waiter waiter;
 
 	is_internal_stop = true;
-	run_on_ui_thread([streamOutput]() { obs_output_force_stop(streamOutput); });
+	run_on_ui_thread([streamOutput = streamOutputGuard.get()]() { obs_output_force_stop(streamOutput); });
 
-	const auto stream_stopped = [streamOutput]() {
+	const auto stream_stopped = [streamOutput = streamOutputGuard.get()]() {
 		return run_on_ui_thread([streamOutput]() {
 			return !obs_output_active(streamOutput) && !obs_frontend_streaming_active();
 		});
 	};
 
 	if (!waiter.wait_until(stream_stopped, 5000, [this]() { return cancelRequested.load(); })) {
-		release_stream_output();
 		is_internal_stop = false;
 		if (cancelRequested.load()) {
 			return {dump_result_type::Failure, kCancelledMsg};
 		}
 		return {dump_result_type::Failure, kStreamStopTimeoutMsg};
 	}
-
-	release_stream_output();
 
 	if (disable_delay && !has_saved_delay.load()) {
 		run_on_ui_thread([this]() {

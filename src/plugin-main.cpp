@@ -21,8 +21,10 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <plugin-support.h>
 
 #include <QAction>
+#include <QCoreApplication>
 #include <QMainWindow>
 #include <QMetaObject>
+#include <QPointer>
 #include <QWidget>
 
 #include "dump_dock.hpp"
@@ -31,26 +33,38 @@ OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 namespace {
-dump_dock *gDock = nullptr;
+QPointer<dump_dock> gDock;
 obs_hotkey_id gDumpHotkeyId = OBS_INVALID_HOTKEY_ID;
 QAction *gShowDockAction = nullptr;
 
 void on_dump_hotkey(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
 {
-	if (!pressed || !gDock) {
+	if (!pressed) {
 		return;
 	}
 
-	QMetaObject::invokeMethod(gDock, [=]() { gDock->trigger_dump_from_hotkey(); }, Qt::QueuedConnection);
+	auto *app = QCoreApplication::instance();
+	if (!app) {
+		return;
+	}
+
+	QMetaObject::invokeMethod(
+		app,
+		[]() {
+			if (gDock) {
+				gDock->trigger_dump_from_hotkey();
+			}
+		},
+		Qt::QueuedConnection);
 }
 } // namespace
 
 bool obs_module_load(void)
 {
 	gDock = new dump_dock();
-	if (!obs_frontend_add_custom_qdock("uhohbs_dock", gDock)) {
+	if (!obs_frontend_add_custom_qdock("uhohbs_dock", gDock.data())) {
 		obs_log(LOG_ERROR, "failed to register dock with OBS frontend");
-		delete gDock;
+		delete gDock.data();
 		gDock = nullptr;
 		return false;
 	}
@@ -66,8 +80,8 @@ bool obs_module_load(void)
 			auto *mainWindow =
 				qobject_cast<QMainWindow *>(static_cast<QWidget *>(obs_frontend_get_main_window()));
 			if (mainWindow) {
-				if (mainWindow->dockWidgetArea(gDock) == Qt::NoDockWidgetArea) {
-					mainWindow->addDockWidget(Qt::LeftDockWidgetArea, gDock);
+				if (mainWindow->dockWidgetArea(gDock.data()) == Qt::NoDockWidgetArea) {
+					mainWindow->addDockWidget(Qt::LeftDockWidgetArea, gDock.data());
 				}
 
 				gDock->setFloating(false);

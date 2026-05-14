@@ -23,7 +23,7 @@ public:
 	virtual ~obs_runtime_bridge() = default;
 
 	virtual bool is_streaming_active() const = 0;
-	virtual dump_result execute_cut(bool disable_delay) = 0;
+	[[nodiscard]] virtual dump_result execute_cut(bool disable_delay) = 0;
 	virtual void request_cancel() = 0;
 };
 
@@ -33,7 +33,7 @@ public:
 	~obs_runtime_bridge_impl() override;
 
 	bool is_streaming_active() const override;
-	dump_result execute_cut(bool disable_delay) override;
+	[[nodiscard]] dump_result execute_cut(bool disable_delay) override;
 	void request_cancel() override;
 
 private:
@@ -56,7 +56,7 @@ public:
 
 	void set_status_callback(status_callback_t callback);
 	bool in_progress() const;
-	dump_result request_dump(bool disable_delay);
+	[[nodiscard]] dump_result request_dump(bool disable_delay);
 	void request_cancel();
 
 private:
