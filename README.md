@@ -8,7 +8,7 @@ It perfectly mimics professional broadcast profanity-delay workflows by immediat
 
 Here is what it looks like for the streamer when an "uh-oh" moment occurs and they press the dump button:
 
-<video src="https://github.com/user-attachments/assets/e3a86b86-6787-48d6-ae51-74a5a8d3ceab" controls="controls" width="100%"></video>
+<video src="https://github.com/user-attachments/assets/ee3bc03c-5220-4e56-9a19-61735524b187" controls="controls" width="100%"></video>
 
 And here is what that exact same moment looks like to the viewers on Twitch:
 
