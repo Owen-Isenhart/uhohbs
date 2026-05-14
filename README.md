@@ -22,7 +22,7 @@ When triggered, it force-stops and instantly restarts your streaming output to s
 
 1. Go to **Settings** → **Advanced** in OBS.
 2. In the **Stream Delay** section, turn on **Enable** and set your desired **Duration** (most streaming sites automatically have a ~3 second delay, so you can add what you want on top of that).
-3. Open the plugin dock: **View** → **Docks** → **uhohbs Control**. (If it's missing, check **Tools** → **Show uhohbs Control Dock**, sometimes OBS is weird and doesn't show it in docks).
+3. Open the plugin dock: **Docks** → **uhohbs Control**. (If it's missing, check **Tools** → **Show uhohbs Control Dock**, sometimes OBS is weird and doesn't show it in docks).
 4. Configure the hotkey (optional): Go to **Settings** → **Hotkeys** and assign a key to `uhohbs: Trigger Dump`.
 5. When an "uh-oh" moment happens on stream, simply press the **Dump** button in the dock (or your assigned hotkey) to immediately cut the delayed frames.
 6. **(Optional)** If you check the **Disable delay after dump (One-time use)** option in the dock, dumping will force the stream to restart instantly without rebuilding the delay buffer. This ensures a much faster recovery time for viewers, but restricts the dump button to a single use for the remainder of that stream. Your original delay settings will be automatically restored for your next broadcast.
@@ -85,7 +85,7 @@ If your environment uses a different preset, choose the matching value from `CMa
 
 ## Install
 
-Copy the built plugin artifacts into your OBS plugin directory for your platform, then restart OBS.
+Go to the latest release and follow the instructions there
 
 ## License
 
