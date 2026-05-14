@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <QColor>
 #include <memory>
+#include <thread>
 
 #include "dump.hpp"
 
@@ -15,7 +16,7 @@ class dump_dock : public QDockWidget {
 
 public:
 	explicit dump_dock(QWidget *parent = nullptr);
-	~dump_dock() override = default;
+	~dump_dock() override;
 
 	void trigger_dump_from_hotkey();
 
@@ -37,4 +38,5 @@ private:
 	QColor statusDefaultColor;
 
 	std::shared_ptr<dump_coordinator> coordinator;
+	std::thread dumpThread;
 };

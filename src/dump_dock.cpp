@@ -123,6 +123,13 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 	});
 }
 
+dump_dock::~dump_dock()
+{
+	if (dumpThread.joinable()) {
+		dumpThread.join();
+	}
+}
+
 void dump_dock::trigger_dump_from_hotkey()
 {
 	emit dump_requested();
@@ -135,9 +142,18 @@ void dump_dock::TriggerDump()
 
 void dump_dock::HandleDump()
 {
-	const auto coordinatorRef = coordinator;
 	const bool skipDelay = skipDelayCheckbox->isChecked();
-	std::thread([coordinatorRef, skipDelay]() { coordinatorRef->request_dump(skipDelay); }).detach();
+	if (coordinator->in_progress()) {
+		coordinator->request_dump(skipDelay);
+		return;
+	}
+
+	if (dumpThread.joinable()) {
+		dumpThread.join();
+	}
+
+	const auto coordinatorRef = coordinator;
+	dumpThread = std::thread([coordinatorRef, skipDelay]() { coordinatorRef->request_dump(skipDelay); });
 }
 
 void dump_dock::SetStatus(const QString &text, bool isError, bool inProgress)

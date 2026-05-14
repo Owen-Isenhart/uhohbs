@@ -40,7 +40,7 @@ private:
 	void restore_delay_if_needed();
 
 	std::atomic<bool> is_internal_stop{false};
-	bool has_saved_delay{false};
+	std::atomic<bool> has_saved_delay{false};
 	bool original_delay_enable{false};
 };
 

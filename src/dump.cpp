@@ -10,6 +10,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -42,29 +43,45 @@ template<typename Fn> auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 	if constexpr (std::is_void_v<Result>) {
 		struct task_payload {
 			Fn fn;
+			std::exception_ptr exception;
 		};
-		task_payload payload{std::forward<Fn>(fn)};
+		task_payload payload{std::forward<Fn>(fn), nullptr};
 		obs_queue_task(
 			OBS_TASK_UI,
 			[](void *param) {
 				auto *payload = static_cast<task_payload *>(param);
-				payload->fn();
+				try {
+					payload->fn();
+				} catch (...) {
+					payload->exception = std::current_exception();
+				}
 			},
 			&payload, true);
+		if (payload.exception) {
+			std::rethrow_exception(payload.exception);
+		}
 	} else {
 		struct task_payload {
 			Fn fn;
 			std::optional<Result> result;
+			std::exception_ptr exception;
 		};
-		task_payload payload{std::forward<Fn>(fn), std::nullopt};
+		task_payload payload{std::forward<Fn>(fn), std::nullopt, nullptr};
 		obs_queue_task(
 			OBS_TASK_UI,
 			[](void *param) {
 				auto *payload = static_cast<task_payload *>(param);
-				payload->result = payload->fn();
+				try {
+					payload->result = payload->fn();
+				} catch (...) {
+					payload->exception = std::current_exception();
+				}
 			},
 			&payload, true);
-		return std::move(*payload.result);
+		if (payload.exception) {
+			std::rethrow_exception(payload.exception);
+		}
+		return std::move(payload.result.value());
 	}
 }
 
@@ -137,15 +154,21 @@ void obs_runtime_bridge_impl::handle_event(enum obs_frontend_event event)
 
 void obs_runtime_bridge_impl::restore_delay_if_needed()
 {
-	if (has_saved_delay) {
-		run_on_ui_thread([this]() {
-			config_t *profile = obs_frontend_get_profile_config();
-			if (profile) {
-				config_set_bool(profile, "Output", "DelayEnable", original_delay_enable);
-				has_saved_delay = false;
-			}
-		});
+	if (!has_saved_delay.load()) {
+		return;
 	}
+
+	run_on_ui_thread([this]() {
+		if (!has_saved_delay.load()) {
+			return;
+		}
+
+		config_t *profile = obs_frontend_get_profile_config();
+		if (profile) {
+			config_set_bool(profile, "Output", "DelayEnable", original_delay_enable);
+			has_saved_delay.store(false);
+		}
+	});
 }
 
 bool obs_runtime_bridge_impl::is_streaming_active() const
@@ -190,13 +213,13 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 
 	run_on_ui_thread([streamOutput]() { obs_output_release(streamOutput); });
 
-	if (disable_delay && !has_saved_delay) {
+	if (disable_delay && !has_saved_delay.load()) {
 		run_on_ui_thread([this]() {
 			config_t *profile = obs_frontend_get_profile_config();
 			if (profile) {
 				original_delay_enable = config_get_bool(profile, "Output", "DelayEnable");
 				config_set_bool(profile, "Output", "DelayEnable", false);
-				has_saved_delay = true;
+				has_saved_delay.store(true);
 			}
 		});
 	}
@@ -207,6 +230,7 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 	if (!waiter.wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_streaming_active(); }); },
 			       restartTimeoutMs)) {
 		is_internal_stop = false;
+		restore_delay_if_needed();
 		return {dump_result_type::Failure, kStreamRestartFailedMsg};
 	}
 
