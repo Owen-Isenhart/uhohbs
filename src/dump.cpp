@@ -143,8 +143,7 @@ public:
 		});
 	}
 
-	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs,
-			std::function<bool()> should_abort = {})
+	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs, std::function<bool()> should_abort = {})
 	{
 		auto end_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
 
@@ -175,10 +174,7 @@ public:
 	obs_output_guard(const obs_output_guard &) = delete;
 	obs_output_guard &operator=(const obs_output_guard &) = delete;
 
-	obs_output_guard(obs_output_guard &&other) noexcept : output(other.output)
-	{
-		other.output = nullptr;
-	}
+	obs_output_guard(obs_output_guard &&other) noexcept : output(other.output) { other.output = nullptr; }
 	obs_output_guard &operator=(obs_output_guard &&other) noexcept
 	{
 		if (this != &other) {
