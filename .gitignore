@@ -17,6 +17,8 @@
 !README.md
 !test.sh
 !/tests
+!/videos
+
 # Exclude lock files
 *.lock.json
 

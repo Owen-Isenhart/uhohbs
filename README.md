@@ -1,16 +1,24 @@
 # uhohbs
 
-uhohbs is an OBS plugin that provides a "dump button" for delayed live streams, to save yourself from "uh-oh" moments that happen.
+uhohbs is an OBS plugin that provides a "dump button" for delayed live streams. It saves you from those accidental "uh-oh" moments that inevitably happen while live.
 
-It is designed to mimic broadcast profanity-delay workflows:
+It perfectly mimics professional broadcast profanity-delay workflows by immediately discarding your currently buffered delayed stream content before it ever reaches your viewers.
 
-- `Cut`: Immediately discard currently buffered delayed content before it reaches viewers.
+## See it in Action
+
+Here is what it looks like for the streamer when an "uh-oh" moment occurs and they press the dump button:
+
+![Streamer perspective of pressing the dump button](videos/streamer_view.mp4)
+
+And here is what that exact same moment looks like to the viewers on Twitch:
+
+![Viewer perspective on Twitch](videos/twitch_view.mp4)
 
 ## What It Does
 
-uhohbs adds a dockable control panel in OBS and a hotkey action to trigger dump operations.
+uhohbs adds a dockable control panel directly into OBS along with a customizable hotkey action to trigger a dump.
 
-- `Cut` force-stops and restarts streaming to drop queued delayed frames.
+When triggered, it force-stops and instantly restarts your streaming output to seamlessly drop any queued frames sitting in your stream delay buffer.
 
 ## How To Use In OBS
 
