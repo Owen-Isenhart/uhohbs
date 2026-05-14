@@ -133,7 +133,12 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 
 dump_dock::~dump_dock()
 {
-	shutdown();
+	if (!shutdownRequested.exchange(true)) {
+		coordinator->request_cancel();
+		if (dumpThread.joinable()) {
+			dumpThread.join();
+		}
+	}
 }
 
 void dump_dock::trigger_dump_from_hotkey()
@@ -183,7 +188,6 @@ void dump_dock::HandleDump()
 
 	const bool skipDelay = skipDelayCheckbox->isChecked();
 	if (coordinator->in_progress()) {
-		(void)coordinator->request_dump(skipDelay);
 		return;
 	}
 

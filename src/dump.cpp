@@ -8,6 +8,7 @@
 #include <util/platform.h>
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -82,7 +83,8 @@ template<typename Fn> auto run_on_ui_thread(Fn &&fn) -> std::invoke_result_t<Fn>
 		if (payload.exception) {
 			std::rethrow_exception(payload.exception);
 		}
-		return std::move(payload.result.value());
+		assert(payload.result.has_value());
+		return *std::move(payload.result);
 	}
 }
 
@@ -105,9 +107,12 @@ public:
 		run_on_ui_thread([this]() { obs_frontend_add_event_callback(callback, this); });
 	}
 
-	~stream_event_waiter()
+	~stream_event_waiter() noexcept
 	{
-		run_on_ui_thread([this]() { obs_frontend_remove_event_callback(callback, this); });
+		try {
+			run_on_ui_thread([this]() { obs_frontend_remove_event_callback(callback, this); });
+		} catch (...) {
+		}
 	}
 
 	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs,
@@ -166,6 +171,8 @@ public:
 			try {
 				run_on_ui_thread([ptr = output]() { obs_output_release(ptr); });
 			} catch (...) {
+				obs_log(LOG_WARNING,
+					"obs_output_guard: failed to release output on UI thread, reference leaked");
 			}
 		}
 		output = new_output;
