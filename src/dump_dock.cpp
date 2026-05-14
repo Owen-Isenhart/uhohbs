@@ -125,9 +125,7 @@ dump_dock::dump_dock(QWidget *parent) : QDockWidget(parent)
 				return;
 			}
 
-			const QString raw = QString::fromStdString(result.message);
-			const QString localized = QString::fromUtf8(obs_module_text(result.message.c_str()));
-			self->SetStatus(localized == raw ? raw : localized, true, false);
+			self->SetStatus(tr_key(result.message.c_str()), true, false);
 		}, Qt::QueuedConnection);
 	});
 }
@@ -170,7 +168,7 @@ void dump_dock::HandleDump()
 		return;
 	}
 
-	if (dumpThreadActive.exchange(true)) {
+	if (dumpThreadActive->exchange(true)) {
 		return;
 	}
 
@@ -180,9 +178,10 @@ void dump_dock::HandleDump()
 	}
 
 	const auto coordinatorRef = coordinator;
-	dumpThread = std::thread([this, coordinatorRef, skipDelay]() {
+	const auto activeFlag = dumpThreadActive;
+	dumpThread = std::thread([coordinatorRef, skipDelay, activeFlag]() {
 		(void)coordinatorRef->request_dump(skipDelay);
-		dumpThreadActive.store(false);
+		activeFlag->store(false);
 	});
 }
 

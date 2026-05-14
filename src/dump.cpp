@@ -109,35 +109,42 @@ template<typename Fn> void run_on_ui_thread_async(Fn &&fn)
 }
 
 class stream_event_waiter {
-	std::mutex m;
-	std::condition_variable cv;
-	std::atomic<bool> dead{false};
+	struct shared_state {
+		std::mutex m;
+		std::condition_variable cv;
+		std::atomic<bool> dead{false};
+	};
+
+	std::shared_ptr<shared_state> state;
+	std::shared_ptr<shared_state> *callback_key{nullptr};
 
 	static void callback(enum obs_frontend_event event, void *private_data)
 	{
 		if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPED || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
-			auto *waiter = static_cast<stream_event_waiter *>(private_data);
-			if (waiter->dead.load(std::memory_order_acquire)) {
+			const auto &s = *static_cast<std::shared_ptr<shared_state> *>(private_data);
+			if (s->dead.load(std::memory_order_acquire)) {
 				return;
 			}
-			std::lock_guard<std::mutex> lock(waiter->m);
-			waiter->cv.notify_all();
+			std::lock_guard<std::mutex> lock(s->m);
+			s->cv.notify_all();
 		}
 	}
 
 public:
-	stream_event_waiter()
+	stream_event_waiter() : state(std::make_shared<shared_state>())
 	{
-		run_on_ui_thread([this]() { obs_frontend_add_event_callback(callback, this); });
+		callback_key = new std::shared_ptr<shared_state>(state);
+		run_on_ui_thread([this]() { obs_frontend_add_event_callback(callback, callback_key); });
 	}
 
 	~stream_event_waiter() noexcept
 	{
-		dead.store(true, std::memory_order_seq_cst);
-		run_on_ui_thread(
-			[fn = &stream_event_waiter::callback, data = static_cast<void *>(this)]() {
-				obs_frontend_remove_event_callback(fn, data);
-			});
+		state->dead.store(true, std::memory_order_seq_cst);
+		auto *key = callback_key;
+		run_on_ui_thread_async([key]() {
+			obs_frontend_remove_event_callback(callback, key);
+			delete key;
+		});
 	}
 
 	bool wait_until(std::function<bool()> predicate, uint32_t timeoutMs,
@@ -152,12 +159,12 @@ public:
 			if (predicate()) {
 				return true;
 			}
-			std::unique_lock<std::mutex> lock(m);
+			std::unique_lock<std::mutex> lock(state->m);
 			auto now = std::chrono::steady_clock::now();
 			if (now >= end_time) {
 				break;
 			}
-			cv.wait_for(lock, std::chrono::milliseconds(250));
+			state->cv.wait_for(lock, std::chrono::milliseconds(250));
 		}
 		if (should_abort && should_abort()) {
 			return false;
@@ -315,7 +322,6 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 
 	if (cancelRequested.load()) {
 		is_internal_stop = false;
-		restore_delay_if_needed();
 		return {dump_result_type::Failure, kCancelledMsg};
 	}
 
@@ -325,10 +331,10 @@ dump_result obs_runtime_bridge_impl::execute_cut(bool disable_delay)
 	if (!waiter.wait_until([]() { return run_on_ui_thread([]() { return obs_frontend_streaming_active(); }); },
 			       restartTimeoutMs, [this]() { return cancelRequested.load(); })) {
 		is_internal_stop = false;
-		restore_delay_if_needed();
 		if (cancelRequested.load()) {
 			return {dump_result_type::Failure, kCancelledMsg};
 		}
+		restore_delay_if_needed();
 		return {dump_result_type::Failure, kStreamRestartFailedMsg};
 	}
 

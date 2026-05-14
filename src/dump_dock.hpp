@@ -41,6 +41,6 @@ private:
 
 	std::shared_ptr<dump_coordinator> coordinator;
 	std::thread dumpThread;
-	std::atomic<bool> dumpThreadActive{false};
+	std::shared_ptr<std::atomic<bool>> dumpThreadActive{std::make_shared<std::atomic<bool>>(false)};
 	std::atomic<bool> shutdownRequested{false};
 };

@@ -111,8 +111,7 @@ void obs_module_unload(void)
 	if (gDock) {
 		gDock->shutdown();
 		obs_frontend_remove_dock("uhohbs_dock");
-		gDock->close();
-		gDock->deleteLater();
+		delete gDock.data();
 		gDock = nullptr;
 	}
 
