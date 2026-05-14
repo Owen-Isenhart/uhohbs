@@ -8,11 +8,11 @@ It perfectly mimics professional broadcast profanity-delay workflows by immediat
 
 Here is what it looks like for the streamer when an "uh-oh" moment occurs and they press the dump button:
 
-![Streamer perspective of pressing the dump button](videos/streamer_view.mp4)
+<video src="videos/streamer_view.mp4" controls="controls" width="100%"></video>
 
 And here is what that exact same moment looks like to the viewers on Twitch:
 
-![Viewer perspective on Twitch](videos/twitch_view.mp4)
+<video src="videos/twitch_view.mp4" controls="controls" width="100%"></video>
 
 ## What It Does
 
